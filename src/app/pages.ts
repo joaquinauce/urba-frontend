@@ -110,7 +110,7 @@ export class WorkPage implements OnInit {
 }
 
   @Component({selector:'app-public',imports:[CommonModule,FormsModule],template:`
-  <main class="public-page"><header class="public-header"><span class="brand"><span class="brand-mark">U</span> urba<span class="brand-dot">.</span></span><span>INFORME DIARIO</span>@if(sessionMode){<button class="ghost small" (click)="logout()">Salir</button>}</header>
+  <main class="public-page"><header class="public-header"><img class="public-brand-logo" src="/brand/beurba.jpeg" alt="B. Urba Desarrollos"><span>INFORME DIARIO</span>@if(sessionMode){<button class="ghost small" (click)="logout()">Salir</button>}</header>
   @if(error){<div class="alert error">{{error}}</div>}@if(loading){<div class="empty">Cargando objetivos…</div>}
   @if(today){<div class="public-content"><div class="public-title"><span class="eyebrow dark">{{arDate(today.date)}}</span><h1>{{today.work.name}}</h1><p>Hola, {{today.work.foremanName}}. Contanos cómo avanzó la obra hoy.</p></div>
   @if(!today.goals.length){<div class="empty"><h2>Sin objetivos para hoy</h2><p>Consultá con el arquitecto responsable.</p></div>}
