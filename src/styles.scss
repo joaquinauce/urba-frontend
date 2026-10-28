@@ -27,3 +27,7 @@
 .date-control app-date-field .date-input-row{margin-top:0}
 .date-control app-date-field input{width:100%!important;margin-top:0!important}
 @media(max-width:620px){.date-control app-date-field{width:155px!important;flex-basis:155px}}
+
+.topbar .brand{flex:none;line-height:0}
+.topbar .brand-logo{display:block;width:auto;height:55px;max-width:180px;object-fit:contain}
+@media(max-width:620px){.topbar{gap:8px;padding:0 12px}.topbar nav{gap:7px}.topbar .brand-logo{height:38px;max-width:112px}.login-card{justify-content:flex-start;padding-top:clamp(55px,12vh,100px)}}

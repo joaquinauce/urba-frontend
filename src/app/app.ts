@@ -7,7 +7,7 @@ import { AuthStore, InstallPromptStore } from './api';
   imports: [RouterOutlet, RouterLink],
   template: `
     @if (!isPublic()) {
-      <header class="topbar"><a class="brand" routerLink="/dashboard"><span class="brand-mark">U</span> urba<span class="brand-dot">.</span></a>
+      <header class="topbar"><a class="brand" routerLink="/dashboard" aria-label="Urba Desarrollos, ir al inicio"><img class="brand-logo" src="/brand/beurba.jpeg" alt="B. Urba Desarrollos"></a>
         @if (auth.token()) { <nav><a routerLink="/dashboard">Inicio</a><a routerLink="/obras">Obras</a><a routerLink="/capataces">Capataces</a><a routerLink="/instalar">Instalar</a></nav><button class="ghost small" (click)="logout()">Salir</button> }
       </header>
     }
