@@ -1,6 +1,8 @@
 import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
+import { formatArDate } from './date';
+import { formatQuantity } from './quantity';
 
 export interface Foreman {id:string;firstName:string;lastName:string;phone:string;isActive:boolean}
 export interface Work {id:string;name:string;description?:string;location?:string;startDate:string;estimatedEndDate:string;status:string;timeZone:string;closeTime:string;foremanId:string;foremanName:string}
@@ -50,14 +52,14 @@ export function message(error:unknown):string {
 export const unitNames:Record<string,string>={UNIDADES:'unidades',METROS:'m',METROS_CUADRADOS:'m²',METROS_CUBICOS:'m³',KILOGRAMOS:'kg',HORAS:'h',PORCENTAJE:'%',OTRA:'otra'};
 export const unitOptions=Object.entries(unitNames).map(([value,label])=>({value,label}));
 export const quantity=(value:unknown)=>Number(value||0);
-export function localDate(timeZone='America/Argentina/Buenos_Aires') {
+export function localDate(timeZone='America/Argentina/Cordoba') {
   const parts=new Intl.DateTimeFormat('en-CA',{timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
   const part=(type:string)=>parts.find(x=>x.type===type)?.value||'';
   return `${part('year')}-${part('month')}-${part('day')}`;
 }
 export function reportText(report:Report):string {
-  const lines=[`INFORME DIARIO — ${report.workName}`,`Fecha: ${report.date}`,`Capataz: ${report.foremanName}`,'','OBJETIVOS:'];
-  for (const item of report.items) lines.push(`• ${item.description}: ${quantity(item.actual)}/${quantity(item.expected)} ${item.customUnit||unitNames[item.unit]||item.unit} — ${Math.round(quantity(item.actual)/quantity(item.expected)*100)}%`);
+  const lines=[`INFORME DIARIO — ${report.workName}`,`Fecha: ${formatArDate(report.date)}`,`Capataz: ${report.foremanName}`,'','OBJETIVOS:'];
+  for (const item of report.items) lines.push(`• ${item.description}: ${formatQuantity(item.actual,item.unit)}/${formatQuantity(item.expected,item.unit)} ${item.customUnit||unitNames[item.unit]||item.unit} — ${Math.round(quantity(item.actual)/quantity(item.expected)*100)}%`);
   lines.push('',`Cumplimiento general: ${report.compliance===null?'Sin objetivos':report.compliance+'%'}`,'',`OBSERVACIONES: ${report.observations||'Sin observaciones'}`,'',`ESTADO: ${report.compliance===null?'SIN OBJETIVOS':report.compliance>=100?'CUMPLIDO':'CUMPLIMIENTO PARCIAL'}`);
   return lines.join('\n');
 }
