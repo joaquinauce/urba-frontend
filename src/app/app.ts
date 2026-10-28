@@ -19,6 +19,6 @@ export class App {
   protected readonly auth = inject(AuthStore);
   protected readonly installPrompt = inject(InstallPromptStore);
   private readonly router = inject(Router);
-  protected isPublic() { return this.router.url.startsWith('/obra/'); }
+  protected isPublic() { return this.router.url.startsWith('/obra/') || this.router.url === '/mi-obra' || this.router.url === '/capataz'; }
   protected logout() { this.auth.clear(); this.router.navigateByUrl('/login'); }
 }

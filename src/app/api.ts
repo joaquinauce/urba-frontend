@@ -5,9 +5,9 @@ import { formatArDate } from './date';
 import { formatQuantity } from './quantity';
 
 export interface Foreman {id:string;firstName:string;lastName:string;phone:string;isActive:boolean}
-export interface Work {id:string;name:string;description?:string;location?:string;startDate:string;estimatedEndDate:string;status:string;timeZone:string;closeTime:string;foremanId:string;foremanName:string}
-export interface Goal {id:string;activityId:string;recurrenceId?:string;date:string;description:string;expectedQuantity:number;unit:string;customUnit?:string;isActive:boolean}
-export interface ReportItem {id:string;goalId:string;activityId:string;description:string;expected:number;actual:number;unit:string;customUnit?:string}
+export interface Work {id:string;name:string;description?:string;location?:string;startDate:string;estimatedEndDate:string;status:string;timeZone:string;closeTime:string;foremanId:string;foremanName:string;accessAlias?:string|null}
+export interface Goal {id:string;activityId:string;recurrenceId?:string;date:string;description:string;expectedQuantity:number;unit:string;customUnit?:string;quantityStep?:number|null;quantityDecimals?:number|null;isActive:boolean}
+export interface ReportItem {id:string;goalId:string;activityId:string;description:string;expected:number;actual:number;unit:string;customUnit?:string;quantityStep?:number|null;quantityDecimals?:number|null}
 export interface Report {id:string;workId:string;workName:string;date:string;foremanName:string;observations:string;submittedAt:string;updatedAt:string;items:ReportItem[];photos:{id:string}[];compliance:number|null}
 export interface PublicToday {work:{id:string;name:string;foremanName:string};date:string;goals:Goal[];report:Report|null;editable:boolean;closeTime:string}
 
@@ -16,6 +16,13 @@ export class AuthStore {
   token = signal(sessionStorage.getItem('urba-token') ?? '');
   set(token:string) {sessionStorage.setItem('urba-token',token);this.token.set(token);}
   clear() {sessionStorage.removeItem('urba-token');this.token.set('');}
+}
+
+@Injectable({providedIn:'root'})
+export class ForemanStore {
+  token = signal(sessionStorage.getItem('urba-foreman-token') ?? '');
+  set(token:string){sessionStorage.setItem('urba-foreman-token',token);this.token.set(token)}
+  clear(){sessionStorage.removeItem('urba-foreman-token');this.token.set('')}
 }
 
 type InstallEvent = Event & {prompt:()=>Promise<void>};
@@ -30,19 +37,22 @@ export class InstallPromptStore {
 export class Api {
   private http = inject(HttpClient);
   private auth = inject(AuthStore);
+  private foreman = inject(ForemanStore);
   private headers() {return new HttpHeaders({Authorization:`Bearer ${this.auth.token()}`});}
-  get<T>(path:string,publicAccess=false):Promise<T> {return firstValueFrom(this.http.get<T>(`/api/${path}`,{headers:publicAccess?undefined:this.headers()}));}
-  post<T>(path:string,body:unknown,publicAccess=false):Promise<T> {return firstValueFrom(this.http.post<T>(`/api/${path}`,body,{headers:publicAccess?undefined:this.headers()}));}
+  private requestHeaders(mode:'admin'|'public'|'foreman'){return mode==='public'?undefined:mode==='foreman'?new HttpHeaders({Authorization:`Bearer ${this.foreman.token()}`}):this.headers()}
+  get<T>(path:string,mode:'admin'|'public'|'foreman'='admin'):Promise<T> {return firstValueFrom(this.http.get<T>(`/api/${path}`,{headers:this.requestHeaders(mode)}));}
+  post<T>(path:string,body:unknown,mode:'admin'|'public'|'foreman'='admin'):Promise<T> {return firstValueFrom(this.http.post<T>(`/api/${path}`,body,{headers:this.requestHeaders(mode)}));}
   patch<T>(path:string,body:unknown):Promise<T> {return firstValueFrom(this.http.patch<T>(`/api/${path}`,body,{headers:this.headers()}));}
   delete<T>(path:string):Promise<T> {return firstValueFrom(this.http.delete<T>(`/api/${path}`,{headers:this.headers()}));}
-  upload<T>(path:string,file:File,publicAccess=false):Promise<T> {const data=new FormData();data.append('photo',file);return firstValueFrom(this.http.post<T>(`/api/${path}`,data,{headers:publicAccess?undefined:this.headers()}));}
+  upload<T>(path:string,file:File,mode:'admin'|'public'|'foreman'='admin'):Promise<T> {const data=new FormData();data.append('photo',file);return firstValueFrom(this.http.post<T>(`/api/${path}`,data,{headers:this.requestHeaders(mode)}));}
   photo(id:string):Promise<Blob> {return firstValueFrom(this.http.get(`/api/admin/photos/${id}`,{headers:this.headers(),responseType:'blob'}));}
+  foremanPhoto(id:string):Promise<Blob>{return firstValueFrom(this.http.get(`/api/public/session/photos/${id}`,{headers:this.requestHeaders('foreman'),responseType:'blob'}))}
 }
 
 export function message(error:unknown):string {
   if (error instanceof HttpErrorResponse) {
     if (error.status===0) return 'Sin conexión. Los datos no fueron enviados; podés intentarlo de nuevo.';
-    if (error.status===401) return 'La sesión venció. Volvé a ingresar.';
+    if (error.status===401) return typeof error.error?.message==='string' ? error.error.message : 'La sesión venció. Volvé a ingresar.';
     const value=error.error?.message;
     return Array.isArray(value) ? value.join('. ') : typeof value==='string' ? value : 'No se pudo completar la operación.';
   }
@@ -59,7 +69,7 @@ export function localDate(timeZone='America/Argentina/Cordoba') {
 }
 export function reportText(report:Report):string {
   const lines=[`INFORME DIARIO — ${report.workName}`,`Fecha: ${formatArDate(report.date)}`,`Capataz: ${report.foremanName}`,'','OBJETIVOS:'];
-  for (const item of report.items) lines.push(`• ${item.description}: ${formatQuantity(item.actual,item.unit)}/${formatQuantity(item.expected,item.unit)} ${item.customUnit||unitNames[item.unit]||item.unit} — ${Math.round(quantity(item.actual)/quantity(item.expected)*100)}%`);
+  for (const item of report.items) lines.push(`• ${item.description}: ${formatQuantity(item.actual,item.unit,item)}/${formatQuantity(item.expected,item.unit,item)} ${item.customUnit||unitNames[item.unit]||item.unit} — ${Math.round(quantity(item.actual)/quantity(item.expected)*100)}%`);
   lines.push('',`Cumplimiento general: ${report.compliance===null?'Sin objetivos':report.compliance+'%'}`,'',`OBSERVACIONES: ${report.observations||'Sin observaciones'}`,'',`ESTADO: ${report.compliance===null?'SIN OBJETIVOS':report.compliance>=100?'CUMPLIDO':'CUMPLIMIENTO PARCIAL'}`);
   return lines.join('\n');
 }

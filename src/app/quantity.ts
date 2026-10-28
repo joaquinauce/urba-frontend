@@ -9,19 +9,22 @@ export const quantityRules: Record<string, { step: number; decimals: number }> =
   OTRA: { step: 0.001, decimals: 3 },
 };
 
-export function quantityRule(unit: string) { return quantityRules[unit] ?? quantityRules['OTRA']; }
+export function quantityRule(unit: string, custom?: {quantityStep?:number|null;quantityDecimals?:number|null}) {
+  return unit === 'OTRA' && custom?.quantityStep != null && custom?.quantityDecimals != null
+    ? {step:Number(custom.quantityStep),decimals:Number(custom.quantityDecimals)} : quantityRules[unit] ?? quantityRules['OTRA'];
+}
 
-export function validQuantity(value: unknown, unit: string, positive = false): boolean {
+export function validQuantity(value: unknown, unit: string, positive = false, custom?: {quantityStep?:number|null;quantityDecimals?:number|null}): boolean {
   const n = Number(value);
-  const { step, decimals } = quantityRule(unit);
+  const { step, decimals } = quantityRule(unit,custom);
   const factor = 10 ** decimals;
   return value !== '' && value !== null && value !== undefined && Number.isFinite(n) && (positive ? n > 0 : n >= 0)
     && Math.abs(Math.round(n * factor) - n * factor) < 1e-7
-    && (unit !== 'HORAS' || Math.abs(Math.round(n / step) - n / step) < 1e-7);
+    && ((unit !== 'HORAS' && !(unit === 'OTRA' && custom?.quantityStep != null)) || Math.abs(Math.round(n / step) - n / step) < 1e-7);
 }
 
-export function formatQuantity(value: unknown, unit: string): string {
+export function formatQuantity(value: unknown, unit: string, custom?: {quantityStep?:number|null;quantityDecimals?:number|null}): string {
   const number = Number(value);
   const historicalDecimals = String(number).split('.')[1]?.length ?? 0;
-  return new Intl.NumberFormat('es-AR', { maximumFractionDigits: Math.max(quantityRule(unit).decimals, historicalDecimals) }).format(number);
+  return new Intl.NumberFormat('es-AR', { maximumFractionDigits: Math.max(quantityRule(unit,custom).decimals, historicalDecimals) }).format(number);
 }

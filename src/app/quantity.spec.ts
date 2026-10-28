@@ -16,5 +16,7 @@ describe('cantidades por unidad', () => {
     expect(validQuantity(-1,'UNIDADES')).toBe(false);
     expect(formatQuantity('10.000','UNIDADES')).toBe('10');
     expect(formatQuantity('2.375','METROS')).toBe('2,375');
+    expect(validQuantity(2.5,'OTRA',false,{quantityStep:0.25,quantityDecimals:2})).toBe(true);
+    expect(validQuantity(2.3,'OTRA',false,{quantityStep:0.25,quantityDecimals:2})).toBe(false);
   });
 });
