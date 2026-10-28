@@ -8,6 +8,18 @@ import { FormsModule } from '@angular/forms';
 @Component({ imports: [DateField, FormsModule], template: '<app-date-field name="day" [(ngModel)]="day" [required]="true"></app-date-field>' })
 class DateHost { day = '2026-10-28'; }
 
+@Component({ imports: [DateField, FormsModule], template: `<form (ngSubmit)="submitted=true">
+  <label>Inicio<app-date-field name="start" [(ngModel)]="start" [required]="true" /></label>
+  <label>Finalización<app-date-field name="end" [(ngModel)]="end" [required]="true" /></label>
+  <label>Objetivo<app-date-field name="goal" [(ngModel)]="goal" [required]="true" /></label>
+  <label>Desde<app-date-field name="from" [(ngModel)]="from" [required]="true" /></label>
+  <label>Hasta<app-date-field name="until" [(ngModel)]="until" [required]="true" /></label>
+  <button type="submit">Guardar</button>
+</form>` })
+class AllDateHost {
+  start='2026-10-28';end='2026-10-28';goal='2026-10-28';from='2026-10-28';until='2026-10-28';submitted=false;
+}
+
 describe('fechas de obra', () => {
   it('muestra dd/MM/aaaa y conserva ISO para la API', () => {
     expect(formatArDate('2026-10-28')).toBe('28/10/2026');
@@ -47,6 +59,32 @@ describe('selector de fecha', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Fecha inválida');
     expect(fixture.componentInstance.day).toBe('');
+    fixture.destroy();
+  });
+  it('permite elegir fechas en todos los campos sin enviar el formulario', async () => {
+    const fixture = TestBed.configureTestingModule({ imports: [AllDateHost] }).createComponent(AllDateHost);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const fields = Array.from(fixture.nativeElement.querySelectorAll('app-date-field')) as HTMLElement[];
+    for (const field of fields) {
+      (field.querySelector('.calendar-toggle') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(field.querySelector('.calendar')).not.toBeNull();
+      (field.querySelector('button[aria-label="29/10/2026"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect((field.querySelector('input') as HTMLInputElement).value).toBe('29/10/2026');
+      expect(field.querySelector('.calendar')).toBeNull();
+    }
+    (fields[0].querySelector('input') as HTMLInputElement).click();
+    fixture.detectChanges();
+    expect(fields[0].querySelector('.calendar')).not.toBeNull();
+    (fields[0].querySelector('button[aria-label="Mes siguiente"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(fields[0].textContent).toContain('noviembre de 2026');
+    expect([fixture.componentInstance.start,fixture.componentInstance.end,fixture.componentInstance.goal,fixture.componentInstance.from,fixture.componentInstance.until]).toEqual(Array(5).fill('2026-10-29'));
+    expect(fixture.componentInstance.submitted).toBe(false);
     fixture.destroy();
   });
 });

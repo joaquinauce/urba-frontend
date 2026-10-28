@@ -21,3 +21,9 @@
 .foreman-actions{display:flex;flex-direction:column;gap:12px;margin-top:26px}
 .foreman-actions button{min-height:46px}
 @media(max-width:620px){.foreman-backdrop{padding:14px;align-items:center}.foreman-modal{padding:24px 22px;border-radius:18px;max-height:calc(100dvh - 28px)}.foreman-modal h2{font-size:1.45rem}.foreman-actions{gap:12px;margin-top:22px}}
+
+/* The compact goal-date field must keep its calendar button inside the input. */
+.date-control app-date-field{width:180px!important;flex:0 0 180px}
+.date-control app-date-field .date-input-row{margin-top:0}
+.date-control app-date-field input{width:100%!important;margin-top:0!important}
+@media(max-width:620px){.date-control app-date-field{width:155px!important;flex-basis:155px}}

@@ -1,4 +1,4 @@
-const CACHE='urba-shell-v5';
+const CACHE='urba-shell-v6';
 self.addEventListener('install',event=>{event.waitUntil((async()=>{
   const cache=await caches.open(CACHE);
   const shell=await fetch('/',{cache:'no-store'});
