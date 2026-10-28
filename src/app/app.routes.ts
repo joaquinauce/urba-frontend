@@ -1,14 +1,14 @@
 import { inject } from '@angular/core';
 import { Router, Routes } from '@angular/router';
 import { AuthStore, ForemanStore } from './api';
-import { LoginPage, AliasLoginPage, DashboardPage, ForemenPage, WorksPage, WorkPage, PublicPage, InstallPage } from './pages';
+import { LoginPage, DashboardPage, ForemenPage, WorksPage, WorkPage, PublicPage, InstallPage } from './pages';
 
 const guard = () => inject(AuthStore).token() ? true : inject(Router).createUrlTree(['/login']);
 const foremanGuard = () => inject(ForemanStore).token() ? true : inject(Router).createUrlTree(['/capataz']);
 export const routes: Routes = [
   {path:'',pathMatch:'full',redirectTo:'dashboard'},
   {path:'login',component:LoginPage},
-  {path:'capataz',component:AliasLoginPage},
+  {path:'capataz',component:LoginPage,data:{foremanModal:true}},
   {path:'mi-obra',component:PublicPage,canActivate:[foremanGuard]},
   {path:'dashboard',component:DashboardPage,canActivate:[guard]},
   {path:'capataces',component:ForemenPage,canActivate:[guard]},

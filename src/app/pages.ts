@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, HostListener, OnInit, ViewChild, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Api, AuthStore, Foreman, ForemanStore, Goal, InstallPromptStore, PublicToday, Report, Work, localDate, message, quantity, reportText, share, unitNames, unitOptions } from './api';
@@ -7,22 +7,22 @@ import { DateField } from './date-field';
 import { formatArDate, overdueDates } from './date';
 import { formatQuantity, quantityRule, validQuantity } from './quantity';
 
-@Component({selector:'app-login',imports:[FormsModule,RouterLink],template:`
-  <main class="login-layout"><section class="login-intro"><span class="eyebrow">CONTROL DIARIO DE OBRAS</span><h1>La obra clara,<br><em>todos los días.</em></h1><p>Objetivos, avances y alertas en un solo lugar.</p><div class="intro-line"></div><small>URBA / GESTIÓN DE OBRAS</small></section>
-  <section class="login-card"><div class="mobile-brand">urba<span>.</span></div><span class="eyebrow dark">ACCESO ADMINISTRADOR</span><h2>Bienvenido</h2><p>Ingresá para ver el estado de tus obras.</p><form (ngSubmit)="submit()"><label>Email<input type="email" name="email" autocomplete="username" [(ngModel)]="email" required></label><label>Contraseña<input type="password" name="password" autocomplete="current-password" [(ngModel)]="password" required></label>@if(error){<div class="alert error">{{error}}</div>}<button class="primary wide" [disabled]="busy">{{busy?'Ingresando…':'Ingresar'}}</button></form><a class="ghost wide" routerLink="/capataz">Soy capataz</a><div class="login-foot">También podés abrir el enlace o QR de tu obra.</div></section></main>`})
-export class LoginPage {
-  private api=inject(Api);private auth=inject(AuthStore);private router=inject(Router);private cdr=inject(ChangeDetectorRef);
+@Component({selector:'app-login',imports:[FormsModule],template:`
+  <main class="login-layout" [attr.inert]="foremanOpen?'':null"><section class="login-intro"><span class="eyebrow">CONTROL DIARIO DE OBRAS</span><h1>La obra clara,<br><em>todos los días.</em></h1><p>Objetivos, avances y alertas en un solo lugar.</p><div class="intro-line"></div><small>URBA / GESTIÓN DE OBRAS</small></section>
+  <section class="login-card"><div class="mobile-brand">urba<span>.</span></div><span class="eyebrow dark">ACCESO ADMINISTRADOR</span><h2>Bienvenido</h2><p>Ingresá para ver el estado de tus obras.</p><form (ngSubmit)="submit()"><label>Email<input type="email" name="email" autocomplete="username" [(ngModel)]="email" required></label><label>Contraseña<input type="password" name="password" autocomplete="current-password" [(ngModel)]="password" required></label>@if(error){<div class="alert error">{{error}}</div>}<button class="primary wide" [disabled]="busy">{{busy?'Ingresando…':'Ingresar'}}</button></form><button #foremanTrigger class="ghost wide login-alt-action" type="button" (click)="openForeman()">Soy capataz</button><div class="login-foot">También podés abrir el enlace o QR de tu obra.</div></section></main>
+  @if(foremanOpen){<div class="foreman-backdrop" (click)="closeForeman()"><section class="foreman-modal" role="dialog" aria-modal="true" aria-labelledby="foreman-dialog-title" (click)="$event.stopPropagation()"><div class="foreman-modal-head"><span class="eyebrow dark">ACCESO CAPATAZ</span><button class="foreman-close" type="button" aria-label="Cerrar" (click)="closeForeman()">×</button></div><div class="foreman-icon" aria-hidden="true">⌂</div><h2 id="foreman-dialog-title">Entrá a tu obra</h2><p>Seleccioná el alias y escribí el PIN que te dio el administrador.</p><form (ngSubmit)="submitForeman()"><label>Alias de obra<select #aliasSelect name="alias" [(ngModel)]="alias" [disabled]="loadingAliases||!aliases.length" required><option value="">{{loadingAliases?'Cargando obras…':'Seleccioná tu obra'}}</option>@for(option of aliases;track option.alias){<option [value]="option.alias">{{option.alias}}</option>}</select></label>@if(!loadingAliases&&!aliases.length){<p class="foreman-hint">Todavía no hay obras con alias disponible. Pedile el alias al administrador.</p>}<label>PIN de obra<input type="password" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" name="pin" [(ngModel)]="pin" autocomplete="off" required placeholder="6 dígitos"></label>@if(foremanError){<div class="alert error">{{foremanError}}</div>}<div class="foreman-actions"><button class="primary wide" [disabled]="foremanBusy||loadingAliases||!aliases.length">{{foremanBusy?'Ingresando…':'Ingresar a mi obra'}}</button><button class="ghost wide" type="button" (click)="closeForeman()">Cancelar</button></div></form></section></div>}`})
+export class LoginPage implements OnInit {
+  private api=inject(Api);private auth=inject(AuthStore);private foreman=inject(ForemanStore);private router=inject(Router);private route=inject(ActivatedRoute);private cdr=inject(ChangeDetectorRef);
+  @ViewChild('aliasSelect') aliasSelect?:ElementRef<HTMLSelectElement>;
+  @ViewChild('foremanTrigger') foremanTrigger?:ElementRef<HTMLButtonElement>;
   email='';password='';error='';busy=false;
+  foremanOpen=false;loadingAliases=false;foremanBusy=false;foremanError='';aliases:{alias:string}[]=[];alias='';pin='';
+  ngOnInit(){if(this.route.snapshot.data['foremanModal'])void this.openForeman()}
   async submit(){this.busy=true;this.error='';try{const result=await this.api.post<{accessToken:string}>('auth/login',{email:this.email,password:this.password},'public');this.auth.set(result.accessToken);await this.router.navigateByUrl('/dashboard');}catch(e){this.error=message(e);this.busy=false;this.cdr.detectChanges()}}
-}
-
-@Component({selector:'app-alias-login',imports:[FormsModule,RouterLink],template:`
-  <main class="login-layout"><section class="login-intro"><span class="eyebrow">CONTROL DIARIO DE OBRAS</span><h1>Tu obra,<br><em>todos los días.</em></h1><p>Informá el avance de manera simple.</p></section>
-  <section class="login-card"><div class="mobile-brand">urba<span>.</span></div><span class="eyebrow dark">ACCESO CAPATAZ</span><h2>Ingresá el código de tu obra</h2><p>Usá el alias y el PIN que te dio el administrador.</p><form (ngSubmit)="submit()"><label>Alias de obra<input name="alias" [(ngModel)]="alias" autocomplete="off" autocapitalize="characters" maxlength="40" required placeholder="ILUMINACION-CIUDAD"></label><label>PIN de obra<input type="password" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" name="pin" [(ngModel)]="pin" autocomplete="off" required></label>@if(error){<div class="alert error">{{error}}</div>}<button class="primary wide" [disabled]="busy">{{busy?'Ingresando…':'Ingresar a mi obra'}}</button></form><a class="ghost wide" routerLink="/login">Volver al acceso administrador</a></section></main>`})
-export class AliasLoginPage {
-  private api=inject(Api);private store=inject(ForemanStore);private router=inject(Router);private cdr=inject(ChangeDetectorRef);
-  alias='';pin='';busy=false;error='';
-  async submit(){this.busy=true;this.error='';try{const result=await this.api.post<{accessToken:string}>('public/alias/login',{alias:this.alias,pin:this.pin},'public');this.store.set(result.accessToken);this.pin='';await this.router.navigateByUrl('/mi-obra')}catch(e){this.error=message(e)}finally{this.busy=false;this.cdr.detectChanges()}}
+  async openForeman(){this.foremanOpen=true;this.foremanError='';this.loadingAliases=true;this.cdr.detectChanges();try{this.aliases=await this.api.get<{alias:string}[]>('public/aliases','public')}catch(e){this.foremanError=message(e)}finally{this.loadingAliases=false;this.cdr.detectChanges();this.aliasSelect?.nativeElement.focus()}}
+  closeForeman(){if(this.foremanBusy)return;this.foremanOpen=false;this.pin='';this.foremanError='';if(this.route.snapshot.data['foremanModal'])void this.router.navigateByUrl('/login');else{this.cdr.detectChanges();this.foremanTrigger?.nativeElement.focus()}}
+  @HostListener('document:keydown.escape') onEscape(){if(this.foremanOpen)this.closeForeman()}
+  async submitForeman(){this.foremanBusy=true;this.foremanError='';try{const result=await this.api.post<{accessToken:string}>('public/alias/login',{alias:this.alias,pin:this.pin},'public');this.foreman.set(result.accessToken);this.pin='';await this.router.navigateByUrl('/mi-obra')}catch(e){this.foremanError=message(e)}finally{this.foremanBusy=false;this.cdr.detectChanges()}}
 }
 
 @Component({selector:'app-dashboard',imports:[RouterLink],template:`
