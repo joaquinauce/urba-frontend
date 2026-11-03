@@ -3,13 +3,17 @@ import { Injectable, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { formatArDate } from './date';
 import { formatQuantity } from './quantity';
+import { PersonalSessionStore, type PersonalRole } from './session';
 
 export interface Foreman {id:string;firstName:string;lastName:string;phone:string;isActive:boolean}
 export interface Work {id:string;name:string;description?:string;location?:string;startDate:string;estimatedEndDate:string;status:string;timeZone:string;closeTime:string;foremanId:string;foremanName:string;accessAlias?:string|null}
 export interface Goal {id:string;activityId:string;recurrenceId?:string;date:string;description:string;expectedQuantity:number;unit:string;customUnit?:string;quantityStep?:number|null;quantityDecimals?:number|null;isActive:boolean}
 export interface ReportItem {id:string;goalId:string;activityId:string;description:string;expected:number;actual:number;unit:string;customUnit?:string;quantityStep?:number|null;quantityDecimals?:number|null}
-export interface Report {id:string;workId:string;workName:string;date:string;foremanName:string;observations:string;submittedAt:string;updatedAt:string;items:ReportItem[];photos:{id:string}[];compliance:number|null}
+export interface Report {id:string;workId:string;workName:string;date:string;foremanName:string;submittedByPersonId?:string|null;submittedBy?:{personId:string|null;name:string;accessType:'PERSONAL'|'LEGACY'};observations:string;submittedAt:string;updatedAt:string;items:ReportItem[];photos:{id:string}[];compliance:number|null}
 export interface PublicToday {work:{id:string;name:string;foremanName:string};date:string;goals:Goal[];report:Report|null;editable:boolean;closeTime:string}
+export interface PersonSummary {id:string;fullName:string;isActive:boolean;hasCode:boolean;failedAttempts:number;lockedUntil:string|null;lastAccessAt:string|null;roles:PersonalRole[];activeAssignments:number}
+export interface WorkAssignment {id:string;personId:string;personName:string;roleCode:PersonalRole;isPrimary:boolean;assignedAt:string;unassignedAt:string|null;active:boolean}
+export interface MemberWork {id:string;name:string;description:string|null;location:string|null;status:string;startDate:string;estimatedEndDate:string;foremanName:string;roles:PersonalRole[]}
 
 @Injectable({providedIn:'root'})
 export class AuthStore {
@@ -38,15 +42,17 @@ export class Api {
   private http = inject(HttpClient);
   private auth = inject(AuthStore);
   private foreman = inject(ForemanStore);
+  private personal = inject(PersonalSessionStore);
   private headers() {return new HttpHeaders({Authorization:`Bearer ${this.auth.token()}`});}
-  private requestHeaders(mode:'admin'|'public'|'foreman'){return mode==='public'?undefined:mode==='foreman'?new HttpHeaders({Authorization:`Bearer ${this.foreman.token()}`}):this.headers()}
-  get<T>(path:string,mode:'admin'|'public'|'foreman'='admin'):Promise<T> {return firstValueFrom(this.http.get<T>(`/api/${path}`,{headers:this.requestHeaders(mode)}));}
-  post<T>(path:string,body:unknown,mode:'admin'|'public'|'foreman'='admin'):Promise<T> {return firstValueFrom(this.http.post<T>(`/api/${path}`,body,{headers:this.requestHeaders(mode)}));}
+  private requestHeaders(mode:'admin'|'public'|'foreman'|'person'){return mode==='public'?undefined:mode==='foreman'?new HttpHeaders({Authorization:`Bearer ${this.foreman.token()}`}):mode==='person'?new HttpHeaders({Authorization:`Bearer ${this.personal.token()}`}):this.headers()}
+  get<T>(path:string,mode:'admin'|'public'|'foreman'|'person'='admin'):Promise<T> {return firstValueFrom(this.http.get<T>(`/api/${path}`,{headers:this.requestHeaders(mode)}));}
+  post<T>(path:string,body:unknown,mode:'admin'|'public'|'foreman'|'person'='admin'):Promise<T> {return firstValueFrom(this.http.post<T>(`/api/${path}`,body,{headers:this.requestHeaders(mode)}));}
   patch<T>(path:string,body:unknown):Promise<T> {return firstValueFrom(this.http.patch<T>(`/api/${path}`,body,{headers:this.headers()}));}
   delete<T>(path:string):Promise<T> {return firstValueFrom(this.http.delete<T>(`/api/${path}`,{headers:this.headers()}));}
-  upload<T>(path:string,file:File,mode:'admin'|'public'|'foreman'='admin'):Promise<T> {const data=new FormData();data.append('photo',file);return firstValueFrom(this.http.post<T>(`/api/${path}`,data,{headers:this.requestHeaders(mode)}));}
+  upload<T>(path:string,file:File,mode:'admin'|'public'|'foreman'|'person'='admin'):Promise<T> {const data=new FormData();data.append('photo',file);return firstValueFrom(this.http.post<T>(`/api/${path}`,data,{headers:this.requestHeaders(mode)}));}
   photo(id:string):Promise<Blob> {return firstValueFrom(this.http.get(`/api/admin/photos/${id}`,{headers:this.headers(),responseType:'blob'}));}
   foremanPhoto(id:string):Promise<Blob>{return firstValueFrom(this.http.get(`/api/public/session/photos/${id}`,{headers:this.requestHeaders('foreman'),responseType:'blob'}))}
+  memberPhoto(id:string):Promise<Blob>{return firstValueFrom(this.http.get(`/api/member/photos/${id}`,{headers:this.requestHeaders('person'),responseType:'blob'}))}
 }
 
 export function message(error:unknown):string {
@@ -68,7 +74,7 @@ export function localDate(timeZone='America/Argentina/Cordoba') {
   return `${part('year')}-${part('month')}-${part('day')}`;
 }
 export function reportText(report:Report):string {
-  const lines=[`INFORME DIARIO — ${report.workName}`,`Fecha: ${formatArDate(report.date)}`,`Capataz: ${report.foremanName}`,'','OBJETIVOS:'];
+  const lines=[`INFORME DIARIO — ${report.workName}`,`Fecha: ${formatArDate(report.date)}`,`Responsable: ${report.submittedBy?.name||report.foremanName}`,'','OBJETIVOS:'];
   for (const item of report.items) lines.push(`• ${item.description}: ${formatQuantity(item.actual,item.unit,item)}/${formatQuantity(item.expected,item.unit,item)} ${item.customUnit||unitNames[item.unit]||item.unit} — ${Math.round(quantity(item.actual)/quantity(item.expected)*100)}%`);
   lines.push('',`Cumplimiento general: ${report.compliance===null?'Sin objetivos':report.compliance+'%'}`,'',`OBSERVACIONES: ${report.observations||'Sin observaciones'}`,'',`ESTADO: ${report.compliance===null?'SIN OBJETIVOS':report.compliance>=100?'CUMPLIDO':'CUMPLIMIENTO PARCIAL'}`);
   return lines.join('\n');

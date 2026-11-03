@@ -55,7 +55,8 @@ export class DateField implements ControlValueAccessor, Validator {
   registerOnTouched(fn: () => void): void { this.touched = fn; }
   registerOnValidatorChange(fn: () => void): void { this.validationChanged = fn; }
   setDisabledState(disabled: boolean): void { this.disabled = disabled; }
-  validate(_: AbstractControl): ValidationErrors | null {
+  validate(control: AbstractControl): ValidationErrors | null {
+    void control;
     if (this.required && !this.value) return { required: true };
     return this.error ? { date: true } : null;
   }
