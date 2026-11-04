@@ -92,15 +92,13 @@ describe('asignaciones múltiples', () => {
 });
 
 describe('alta con credenciales', () => {
-  it('edita nombre, clave y acceso sin reenviar el rol ni el email', async () => {
+  it('edita en modal sin reenviar el rol ni el email y permite cancelar', async () => {
     const patch = vi.fn(async () => ({}));
     const person: PersonSummary = {
       id: 'person-edit', fullName: 'Nombre anterior', email: 'jefa@example.com',
       isActive: true, hasCode: false, hasPassword: true, failedAttempts: 0,
       lockedUntil: null, lastAccessAt: null, roles: ['SITE_MANAGER'], activeAssignments: 0,
     };
-    vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
-    vi.stubGlobal('confirm', () => true);
     TestBed.configureTestingModule({ providers: [{ provide: Api, useValue: {
       get: vi.fn(async (path: string) => path === 'admin/people' ? [person] : []), patch,
     } }] });
@@ -108,31 +106,45 @@ describe('alta con credenciales', () => {
     await fixture.componentInstance.load();
     fixture.detectChanges();
     (fixture.nativeElement.querySelector('.person-actions button') as HTMLButtonElement).click();
+    await fixture.whenStable();
     fixture.detectChanges();
     expect(fixture.componentInstance.editing).toBe('person-edit');
+    expect(fixture.nativeElement.querySelector('.app-modal h2').textContent).toBe('Editar persona');
+    expect((fixture.nativeElement.querySelector('input[name="fullName"]') as HTMLInputElement).value).toBe('Nombre anterior');
+    fixture.componentInstance.form.fullName = 'Cambio sin guardar';
+    (fixture.nativeElement.querySelector('.modal-actions .ghost') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect(fixture.componentInstance.editing).toBe('');
+    expect(fixture.nativeElement.querySelector('.app-modal')).toBeNull();
+    fixture.componentInstance.edit(person);
+    (fixture.nativeElement.querySelector('.app-modal-close') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('.app-modal')).toBeNull();
+    fixture.componentInstance.edit(person);
     fixture.componentInstance.form.fullName = 'Nombre nuevo';
-    fixture.componentInstance.form.password = 'clave-nueva-123';
-    fixture.componentInstance.form.isActive = false;
     await fixture.componentInstance.save();
     expect(patch).toHaveBeenCalledWith('admin/people/person-edit', {
-      fullName: 'Nombre nuevo', password: 'clave-nueva-123', isActive: false,
+      fullName: 'Nombre nuevo',
     });
   });
 
-  it('permite elegir un solo tipo de usuario y mostrar la contraseña', async () => {
+  it('abre nueva persona en modal y permite elegir un solo tipo de usuario', async () => {
     TestBed.configureTestingModule({ providers: [{ provide: Api, useValue: { get: vi.fn(async () => []) } }] });
     const fixture = TestBed.createComponent(PeoplePage);
     fixture.detectChanges();
+    (fixture.nativeElement.querySelector('.people-list-tools .primary') as HTMLButtonElement).click();
+    fixture.detectChanges();
     const admin = fixture.nativeElement.querySelector('input[value="ADMINISTRATOR"]') as HTMLInputElement;
-    const foreman = fixture.nativeElement.querySelector('input[value="FOREMAN"]') as HTMLInputElement;
+    const manager = fixture.nativeElement.querySelector('input[value="SITE_MANAGER"]') as HTMLInputElement;
+    expect(fixture.nativeElement.querySelector('input[value="FOREMAN"]')).toBeNull();
     admin.click();
     await fixture.whenStable();
     fixture.detectChanges();
     expect(fixture.componentInstance.roles()).toEqual(['ADMINISTRATOR']);
-    foreman.click();
+    manager.click();
     await fixture.whenStable();
     fixture.detectChanges();
-    expect(fixture.componentInstance.roles()).toEqual(['FOREMAN']);
+    expect(fixture.componentInstance.roles()).toEqual(['SITE_MANAGER']);
     admin.click();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -141,6 +153,7 @@ describe('alta con credenciales', () => {
     (fixture.nativeElement.querySelector('.password-toggle') as HTMLButtonElement).click();
     fixture.detectChanges();
     expect(password.type).toBe('text');
+    expect(fixture.nativeElement.querySelector('.management-steps')).toBeNull();
   });
 
   it('crea al jefe de obra con email y contraseña', async () => {
@@ -181,7 +194,45 @@ describe('alta con credenciales', () => {
     expect(post).toHaveBeenCalledTimes(1);
     expect(fixture.componentInstance.revealedCode).toBe('');
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('.management-steps')).not.toBeNull();
-    expect(fixture.nativeElement.textContent).toContain('Entregá su acceso');
+    expect(fixture.nativeElement.querySelector('.management-steps')).toBeNull();
+  });
+
+  it('inhabilita y cambia la clave desde la tarjeta', async () => {
+    const person: PersonSummary = { id: 'admin-1', fullName: 'Administradora', email: 'admin@example.com',
+      isActive: true, hasCode: false, hasPassword: true, failedAttempts: 0, lockedUntil: null,
+      lastAccessAt: null, roles: ['ADMINISTRATOR'], activeAssignments: 0 };
+    const patch = vi.fn(async () => ({}));
+    TestBed.configureTestingModule({ providers: [{ provide: Api, useValue: {
+      get: vi.fn(async (path: string) => path === 'admin/people' ? [person] : []), patch,
+    } }] });
+    const fixture = TestBed.createComponent(PeoplePage);
+    await fixture.componentInstance.load(); fixture.detectChanges();
+    const buttons = fixture.nativeElement.querySelectorAll('.person-actions button') as NodeListOf<HTMLButtonElement>;
+    buttons[1].click(); fixture.detectChanges();
+    await fixture.whenStable();
+    const newPassword = fixture.nativeElement.querySelector('input[name="newPassword"]') as HTMLInputElement;
+    const confirmation = fixture.nativeElement.querySelector('input[name="confirmNewPassword"]') as HTMLInputElement;
+    const eyeButtons = fixture.nativeElement.querySelectorAll('.password-toggle') as NodeListOf<HTMLButtonElement>;
+    eyeButtons[0].click(); fixture.detectChanges();
+    expect(newPassword.type).toBe('text');
+    expect(confirmation.type).toBe('password');
+    eyeButtons[1].click(); fixture.detectChanges();
+    expect(confirmation.type).toBe('text');
+    (fixture.nativeElement.querySelector('.modal-actions .primary') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('.app-modal .alert.error').textContent).toContain('10 caracteres');
+    newPassword.value = 'clave-nueva-123'; newPassword.dispatchEvent(new Event('input', { bubbles: true }));
+    confirmation.value = 'clave-nueva-123'; confirmation.dispatchEvent(new Event('input', { bubbles: true }));
+    await fixture.whenStable();
+    expect(fixture.componentInstance.newPassword).toBe('clave-nueva-123');
+    expect(fixture.componentInstance.confirmNewPassword).toBe('clave-nueva-123');
+    (fixture.nativeElement.querySelector('.modal-actions .primary') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect(patch).toHaveBeenCalledWith('admin/people/admin-1', { password: 'clave-nueva-123' });
+    (fixture.nativeElement.querySelectorAll('.person-actions button')[2] as HTMLButtonElement).click(); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.status-confirm-icon')).not.toBeNull();
+    (fixture.nativeElement.querySelector('.modal-actions .primary') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect(patch).toHaveBeenCalledWith('admin/people/admin-1', { isActive: false });
   });
 });

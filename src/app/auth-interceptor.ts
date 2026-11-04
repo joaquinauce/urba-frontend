@@ -17,7 +17,9 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
         error.status === 401 &&
         request.headers.has('Authorization')
       ) {
-        if (request.url.includes('/api/member/') || request.url.includes('/api/auth/personal/')) {
+        if (request.url.includes('/api/member/password')) {
+          // La clave actual puede ser incorrecta sin que la sesión haya vencido.
+        } else if (request.url.includes('/api/member/') || request.url.includes('/api/auth/personal/')) {
           personal.clear();
           void router.navigateByUrl('/login');
         } else if (request.url.includes('/api/public/session/')) {

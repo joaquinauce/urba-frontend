@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import {
   ChangeDetectorRef,
   Component,
+  HostListener,
   Input,
   OnInit,
   inject,
@@ -34,86 +35,82 @@ type PersonForm = {
         <div>
           <span class="eyebrow dark">EQUIPO Y PERMISOS</span>
           <h1>Personas</h1>
-          <p>Gestioná administradores, jefes de obra y capataces.</p>
+          <p>Gestioná administradores y jefes de obra.</p>
         </div>
       </div>
 
-      <div class="management-steps" aria-label="Pasos para habilitar el acceso">
-        <div><span>1</span><strong>Creá la persona</strong><small>Elegí su función y acceso.</small></div>
-        <div><span>2</span><strong>Entregá su acceso</strong><small>Email y contraseña o código personal.</small></div>
-        <div><span>3</span><strong>Asigná obras</strong><small>Desde el detalle de cada obra.</small></div>
-      </div>
-
-      @if (error) { <div class="alert error">{{ error }}</div> }
+      @if (error && !modal) { <div class="alert error">{{ error }}</div> }
       @if (notice) { <div class="alert success">{{ notice }}</div> }
-      @if (revealedCode) {
-        <section class="panel personal-code" aria-live="polite">
-          <span class="eyebrow dark">CÓDIGO PERSONAL · SE MUESTRA UNA VEZ</span>
-          <h2>{{ revealedName }}</h2>
-          <div class="code-value">{{ revealedCode }}</div>
-          <p>Compartilo por un medio seguro. Al cerrar este aviso no podremos volver a mostrarlo.</p>
-          <div class="actions">
-            <button class="primary" type="button" (click)="copyCode()">Copiar código de 6 dígitos</button>
-            <button class="ghost" type="button" (click)="dismissCode()">Cerrar</button>
-          </div>
-        </section>
-      }
-
-      <div class="two-column people-layout">
-        <section class="panel">
-          <h2>{{ editing ? 'Editar persona' : 'Nueva persona' }}</h2>
-          <form (ngSubmit)="save()">
-            <label>Nombre completo
-              <input name="fullName" [(ngModel)]="form.fullName" maxlength="201" required>
-            </label>
-            <fieldset class="role-fieldset">
-              <legend>Tipo de usuario</legend>
-              <label class="role-option" [class.selected]="form.role==='ADMINISTRATOR'"><input type="radio" name="role" value="ADMINISTRATOR" [checked]="form.role==='ADMINISTRATOR'" (change)="form.role='ADMINISTRATOR'"><span><strong>Administrador</strong><small>Gestiona obras, personas y objetivos.</small></span></label>
-              <label class="role-option" [class.selected]="form.role==='SITE_MANAGER'"><input type="radio" name="role" value="SITE_MANAGER" [checked]="form.role==='SITE_MANAGER'" (change)="form.role='SITE_MANAGER'"><span><strong>Jefe de obra</strong><small>Consulta la obra y registra avances, informes y fotos.</small></span></label>
-              <label class="role-option" [class.selected]="form.role==='FOREMAN'"><input type="radio" name="role" value="FOREMAN" [checked]="form.role==='FOREMAN'" (change)="form.role='FOREMAN'"><span><strong>Capataz</strong><small>Consulta la obra y registra avances, informes y fotos.</small></span></label>
-            </fieldset>
-            @if (form.role==='ADMINISTRATOR' || form.role==='SITE_MANAGER') {<label>Email<input type="email" name="email" [(ngModel)]="form.email" autocomplete="off" [required]="!editing || !!originalEmail || form.role !== originalRole"></label><label>{{ editing ? 'Nueva contraseña' : 'Contraseña' }}<span class="password-field"><input type="password" [attr.type]="showPassword ? 'text' : 'password'" name="password" [(ngModel)]="form.password" [required]="!editing || (form.role !== originalRole && !originalHasPassword)" minlength="10" autocomplete="new-password" [placeholder]="editing ? 'Escribí una nueva clave solo si querés cambiarla' : ''"><button type="button" class="password-toggle" [attr.aria-label]="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'" [attr.aria-pressed]="showPassword" (click)="showPassword=!showPassword" title="Mostrar u ocultar contraseña"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>@if(!showPassword){<path d="M3 3l18 18"/>}</svg></button></span>@if(editing){<small class="field-hint">Si no escribís una nueva, la clave actual sigue funcionando.</small>}</label>}
-            @if (editing) {
-              <label class="check"><input type="checkbox" name="isActive" [(ngModel)]="form.isActive"> Permitir que ingrese</label>
-            }
-            <div class="actions">
-              <button class="primary" [disabled]="busy">{{ busy ? 'Guardando…' : editing ? 'Guardar cambios' : 'Crear persona' }}</button>
-              @if (editing) { <button class="ghost" type="button" (click)="reset()">Cancelar</button> }
-            </div>
-          </form>
-        </section>
-
-        <section>
-          <div class="people-list-head"><h2 class="list-heading">Equipo <span>{{ filteredPeople().length }}</span></h2><label class="search-field"><span class="sr-only">Buscar persona</span><input type="search" name="peopleSearch" [(ngModel)]="query" placeholder="Buscar por nombre o rol"></label></div>
-          @if (loading) { <div class="empty compact">Cargando personas…</div> }
-          @else if (!people.length) { <div class="empty compact">Todavía no hay personas operativas.</div> }
-          @for (person of filteredPeople(); track person.id) {
-            <article class="person-card" [class.inactive]="!person.isActive">
-              <div class="person-card-head">
-                <div class="avatar">{{ initials(person.fullName) }}</div>
-                <div class="row-main">
-                  <strong>{{ person.fullName }}</strong>
-                  <small>{{ person.isActive ? 'Activa' : 'Inactiva' }} · {{ person.email ? person.email : person.hasCode ? 'Código configurado' : 'Sin código' }}</small>
-                </div>
-                <span class="status" [class.verde]="person.isActive">{{ person.isActive ? 'Activa' : 'Inactiva' }}</span>
-              </div>
-              <div class="role-chips">
-                @for (role of person.roles; track role) { <span>{{ role === 'ADMINISTRATOR' ? 'Administrador' : label(role) }}</span> }
-              </div>
-              <p class="assignment-summary">
-                <strong>{{ person.activeAssignments }}</strong> asignación(es) activa(s)
-                @if (workNames[person.id]?.length) { · {{ workNames[person.id].join(' · ') }} }
-              </p>
-              @if (person.lastAccessAt) { <small>Último acceso: {{ dateTime(person.lastAccessAt) }}</small> }
-              <div class="actions person-actions">
-                <button class="ghost small" type="button" (click)="edit(person)">Editar</button>
-                @if(person.roles.includes('FOREMAN')){<button class="ghost small" type="button" (click)="rotate(person)">{{ person.hasCode ? 'Generar código nuevo' : 'Generar código' }}</button>}
-              </div>
-            </article>
-          }
-          @if (!loading && people.length && !filteredPeople().length) { <div class="empty compact">No encontramos personas con esa búsqueda.</div> }
-        </section>
+      <div class="people-list-head">
+        <h2 class="list-heading">Equipo <span class="team-count">{{ filteredPeople().length }} {{ filteredPeople().length === 1 ? 'registrado' : 'registrados' }}</span></h2>
+        <div class="people-list-tools">
+          <label class="search-field"><span class="sr-only">Buscar persona</span><input type="search" name="peopleSearch" [(ngModel)]="query" placeholder="Buscar por nombre o rol"></label>
+          <button class="primary" type="button" (click)="newPerson()">+ Nueva persona</button>
+        </div>
       </div>
+      @if (loading) { <div class="empty compact">Cargando personas…</div> }
+      @else if (!people.length) { <div class="empty compact">Todavía no hay administradores ni jefes de obra.</div> }
+      @for (group of groups(); track group.role) {
+        @if (group.people.length) {
+          <section class="team-group" [attr.aria-label]="group.title">
+            <div class="team-group-heading"><h3>{{ group.title }}</h3><span>{{ group.people.length }}</span></div>
+            <div class="team-grid">
+              @for (person of group.people; track person.id) {
+                <article class="person-card" [class.inactive]="!person.isActive">
+                  <div class="person-card-head">
+                    <div class="avatar">{{ initials(person.fullName) }}</div>
+                    <div class="row-main"><strong>{{ person.fullName }}</strong><small>{{ person.email || 'Sin email' }}</small></div>
+                    <span class="status" [class.verde]="person.isActive">{{ person.isActive ? 'Activa' : 'Inactiva' }}</span>
+                  </div>
+                  @if (person.activeAssignments || workNames[person.id]?.length) {
+                    <p class="assignment-summary"><strong>{{ person.activeAssignments }}</strong> asignación(es) activa(s)@if (workNames[person.id]?.length) { · {{ workNames[person.id].join(' · ') }} }</p>
+                  }
+                  @if (person.lastAccessAt) { <small>Último acceso: {{ dateTime(person.lastAccessAt) }}</small> }
+                  <div class="actions person-actions">
+                    <button class="ghost small" type="button" (click)="edit(person)">Editar</button>
+                    <button class="ghost small" type="button" (click)="changePassword(person)">Cambiar clave</button>
+                    <button class="ghost small" type="button" [disabled]="busy" (click)="requestStatus(person)">{{ person.isActive ? 'Inhabilitar' : 'Habilitar' }}</button>
+                  </div>
+                </article>
+              }
+            </div>
+          </section>
+        }
+      }
+      @if (!loading && people.length && !filteredPeople().length) { <div class="empty compact">No encontramos personas con esa búsqueda.</div> }
+      @if (modal) {
+        <div class="app-modal-backdrop" (click)="closeModal()">
+          <section class="app-modal" role="dialog" aria-modal="true" [attr.aria-label]="modal === 'password' ? 'Cambiar clave' : modal === 'status' ? selectedPerson?.isActive ? 'Inhabilitar persona' : 'Habilitar persona' : editing ? 'Editar persona' : 'Nueva persona'" (click)="$event.stopPropagation()">
+            <div class="app-modal-head"><div><span class="eyebrow dark">EQUIPO</span><h2>{{ modal === 'password' ? 'Cambiar clave' : modal === 'status' ? selectedPerson?.isActive ? 'Inhabilitar persona' : 'Habilitar persona' : editing ? 'Editar persona' : 'Nueva persona' }}</h2></div><button class="app-modal-close" type="button" aria-label="Cerrar" (click)="closeModal()">×</button></div>
+            @if (modal === 'password') {
+              <p class="modal-intro">{{ selectedPerson?.fullName }}</p>
+              <form (ngSubmit)="savePassword()" novalidate>
+                <label>Nueva contraseña<span class="password-field"><input #newPasswordInput [type]="showNewPassword ? 'text' : 'password'" name="newPassword" [(ngModel)]="newPassword" minlength="10" required autocomplete="new-password"><button class="password-toggle" type="button" [attr.aria-label]="showNewPassword ? 'Ocultar nueva contraseña' : 'Mostrar nueva contraseña'" [attr.aria-pressed]="showNewPassword" (click)="togglePasswordVisibility(newPasswordInput, 'new', $event)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>@if(!showNewPassword){<path d="M3 3l18 18"/>}</svg></button></span></label>
+                <label>Repetir contraseña<span class="password-field"><input #confirmNewPasswordInput [type]="showConfirmNewPassword ? 'text' : 'password'" name="confirmNewPassword" [(ngModel)]="confirmNewPassword" minlength="10" required autocomplete="new-password"><button class="password-toggle" type="button" [attr.aria-label]="showConfirmNewPassword ? 'Ocultar repetición de contraseña' : 'Mostrar repetición de contraseña'" [attr.aria-pressed]="showConfirmNewPassword" (click)="togglePasswordVisibility(confirmNewPasswordInput, 'confirm', $event)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>@if(!showConfirmNewPassword){<path d="M3 3l18 18"/>}</svg></button></span></label>
+                @if (error) { <div class="alert error">{{ error }}</div> }
+                <div class="actions modal-actions"><button class="ghost" type="button" (click)="closeModal()">Cancelar</button><button class="primary" [disabled]="busy">{{ busy ? 'Guardando…' : 'Guardar clave' }}</button></div>
+              </form>
+            } @else if (modal === 'status') {
+              <div class="status-confirm-icon" [class.enable]="!selectedPerson?.isActive" aria-hidden="true">{{ selectedPerson?.isActive ? '!' : '✓' }}</div>
+              <p class="modal-intro"><strong>{{ selectedPerson?.fullName }}</strong> {{ selectedPerson?.isActive ? 'perderá acceso inmediatamente a la aplicación.' : 'podrá volver a ingresar a la aplicación.' }}</p>
+              @if (error) { <div class="alert error">{{ error }}</div> }
+              <div class="actions modal-actions"><button class="ghost" type="button" (click)="closeModal()">Cancelar</button><button class="primary" type="button" [disabled]="busy" (click)="confirmStatus()">{{ busy ? 'Guardando…' : selectedPerson?.isActive ? 'Inhabilitar' : 'Habilitar' }}</button></div>
+            } @else {
+              <form (ngSubmit)="save()">
+                <label>Nombre completo<input name="fullName" [(ngModel)]="form.fullName" maxlength="201" required></label>
+                <fieldset class="role-fieldset"><legend>Rol</legend>
+                  <label class="role-option" [class.selected]="form.role==='ADMINISTRATOR'"><input type="radio" name="role" value="ADMINISTRATOR" [checked]="form.role==='ADMINISTRATOR'" (change)="form.role='ADMINISTRATOR'"><span><strong>Administrador</strong></span></label>
+                  <label class="role-option" [class.selected]="form.role==='SITE_MANAGER'"><input type="radio" name="role" value="SITE_MANAGER" [checked]="form.role==='SITE_MANAGER'" (change)="form.role='SITE_MANAGER'"><span><strong>Jefe de obra</strong></span></label>
+                </fieldset>
+                <label>Email<input type="email" name="email" [(ngModel)]="form.email" autocomplete="off" required></label>
+                @if (!editing) { <label>Contraseña<span class="password-field"><input #passwordInput [type]="showPassword ? 'text' : 'password'" name="password" [(ngModel)]="form.password" minlength="10" required autocomplete="new-password"><button class="password-toggle" type="button" [attr.aria-label]="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'" [attr.aria-pressed]="showPassword" (click)="togglePasswordVisibility(passwordInput, 'create', $event)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>@if(!showPassword){<path d="M3 3l18 18"/>}</svg></button></span></label> }
+                @if (error) { <div class="alert error">{{ error }}</div> }
+                <div class="actions modal-actions"><button class="ghost" type="button" (click)="closeModal()">Cancelar</button><button class="primary" [disabled]="busy">{{ busy ? 'Guardando…' : editing ? 'Guardar cambios' : 'Crear persona' }}</button></div>
+              </form>
+            }
+          </section>
+        </div>
+      }
     </main>
   `,
 })
@@ -125,6 +122,12 @@ export class PeoplePage implements OnInit {
   workNames: Record<string, string[]> = {};
   loading = true;
   busy = false;
+  modal: '' | 'person' | 'password' | 'status' = '';
+  selectedPerson: PersonSummary | null = null;
+  newPassword = '';
+  confirmNewPassword = '';
+  showNewPassword = false;
+  showConfirmNewPassword = false;
   editing = '';
   originalActive = true;
   originalRole: PersonalRole | 'ADMINISTRATOR' | '' = '';
@@ -161,13 +164,44 @@ export class PeoplePage implements OnInit {
     );
   }
 
+  groups() {
+    const people = this.filteredPeople();
+    return [
+      { role: 'ADMINISTRATOR', title: 'Administradores', people: people.filter((person) => person.roles.includes('ADMINISTRATOR')) },
+      { role: 'SITE_MANAGER', title: 'Jefes de obra', people: people.filter((person) => person.roles.includes('SITE_MANAGER') && !person.roles.includes('ADMINISTRATOR')) },
+    ];
+  }
+
+  newPerson() {
+    this.reset();
+    this.error = '';
+    this.modal = 'person';
+    this.cdr.detectChanges();
+  }
+
+  closeModal() {
+    this.modal = '';
+    this.selectedPerson = null;
+    this.newPassword = '';
+    this.confirmNewPassword = '';
+    this.showNewPassword = false;
+    this.showConfirmNewPassword = false;
+    this.error = '';
+    this.reset();
+    this.cdr.detectChanges();
+  }
+
+  @HostListener('document:keydown.escape') onEscape() { if (this.modal) this.closeModal(); }
+
   async load() {
     this.error = '';
     try {
-      [this.people, this.works] = await Promise.all([
+      const [people, works] = await Promise.all([
         this.api.get<PersonSummary[]>('admin/people'),
         this.api.get<Work[]>('admin/works'),
       ]);
+      this.people = people.filter((person) => person.roles.some((role) => role === 'ADMINISTRATOR' || role === 'SITE_MANAGER'));
+      this.works = works;
       const assignmentSets = await Promise.all(
         this.works.map((work) =>
           this.api.get<WorkAssignment[]>(`admin/works/${work.id}/assignments`),
@@ -191,6 +225,7 @@ export class PeoplePage implements OnInit {
   }
 
   edit(person: PersonSummary) {
+    this.error = '';
     this.editing = person.id;
     this.originalActive = person.isActive;
     this.form = {
@@ -204,7 +239,78 @@ export class PeoplePage implements OnInit {
     this.originalEmail = this.form.email;
     this.originalHasPassword = person.hasPassword ?? false;
     this.showPassword = false;
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    this.modal = 'person';
+    this.cdr.detectChanges();
+  }
+
+  changePassword(person: PersonSummary) {
+    this.error = '';
+    this.selectedPerson = person;
+    this.newPassword = '';
+    this.confirmNewPassword = '';
+    this.showNewPassword = false;
+    this.showConfirmNewPassword = false;
+    this.modal = 'password';
+    this.cdr.detectChanges();
+  }
+
+  togglePasswordVisibility(input: HTMLInputElement, field: 'new' | 'confirm' | 'create', event: MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (field === 'new') this.showNewPassword = !this.showNewPassword;
+    else if (field === 'confirm') this.showConfirmNewPassword = !this.showConfirmNewPassword;
+    else this.showPassword = !this.showPassword;
+    input.type = field === 'new' ? (this.showNewPassword ? 'text' : 'password')
+      : field === 'confirm' ? (this.showConfirmNewPassword ? 'text' : 'password')
+        : (this.showPassword ? 'text' : 'password');
+    this.cdr.detectChanges();
+    input.focus();
+  }
+
+  async savePassword() {
+    if (!this.selectedPerson) { this.error = 'Seleccioná una persona.'; return; }
+    if (this.newPassword.length < 10) { this.error = 'La contraseña debe tener al menos 10 caracteres.'; return; }
+    if (this.newPassword !== this.confirmNewPassword) { this.error = 'Las contraseñas no coinciden.'; return; }
+    this.busy = true;
+    this.error = '';
+    try {
+      await this.api.patch(`admin/people/${this.selectedPerson.id}`, { password: this.newPassword });
+      this.notice = `Clave actualizada para ${this.selectedPerson.fullName}.`;
+      this.busy = false;
+      this.closeModal();
+      await this.load();
+    } catch (error) {
+      this.error = message(error);
+    } finally {
+      this.busy = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  requestStatus(person: PersonSummary) {
+    this.selectedPerson = person;
+    this.error = '';
+    this.modal = 'status';
+    this.cdr.detectChanges();
+  }
+
+  async confirmStatus() {
+    const person = this.selectedPerson;
+    if (!person) return;
+    this.busy = true;
+    this.error = '';
+    try {
+      await this.api.patch(`admin/people/${person.id}`, { isActive: !person.isActive });
+      this.notice = person.isActive ? 'Persona inhabilitada.' : 'Persona habilitada.';
+      this.busy = false;
+      this.closeModal();
+      await this.load();
+    } catch (error) {
+      this.error = message(error);
+    } finally {
+      this.busy = false;
+      this.cdr.detectChanges();
+    }
   }
 
   reset() {
@@ -225,13 +331,6 @@ export class PeoplePage implements OnInit {
       this.error = 'Seleccioná al menos un rol.';
       return;
     }
-    if (
-      this.editing &&
-      this.originalActive &&
-      !this.form.isActive &&
-      !confirm('La persona perderá acceso inmediatamente. ¿Desactivarla?')
-    )
-      return;
     this.busy = true;
     try {
       if (this.editing) {
@@ -248,7 +347,7 @@ export class PeoplePage implements OnInit {
           'admin/people',
           { fullName: this.form.fullName, roles, email: this.form.email, password: this.form.password },
         );
-        if (!roles.includes('FOREMAN')) { this.notice = 'Persona creada.'; this.reset(); await this.load(); return; }
+        if (!roles.includes('FOREMAN')) { this.notice = 'Persona creada.'; this.closeModalAfterSave(); await this.load(); return; }
         let credentials: { code: string };
         try {
           credentials = await this.api.post<{ code: string }>(
@@ -266,7 +365,7 @@ export class PeoplePage implements OnInit {
         this.revealedCode = credentials.code;
         this.notice = 'Persona creada. Guardá su código ahora.';
       }
-      this.reset();
+      this.closeModalAfterSave();
       await this.load();
     } catch (error) {
       this.error = message(error);
@@ -274,6 +373,14 @@ export class PeoplePage implements OnInit {
       this.busy = false;
       this.cdr.detectChanges();
     }
+  }
+
+  private closeModalAfterSave() {
+    this.reset();
+    this.modal = '';
+    this.selectedPerson = null;
+    this.newPassword = '';
+    this.confirmNewPassword = '';
   }
 
   async rotate(person: PersonSummary) {
