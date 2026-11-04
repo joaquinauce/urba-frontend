@@ -45,7 +45,7 @@ export class PersonalSessionStore {
   readonly token = computed(() => this.session()?.accessToken ?? '');
   readonly person = computed(() => this.session()?.person ?? null);
   readonly canWrite = computed(() =>
-    this.person()?.roles.includes('FOREMAN') ?? false,
+    this.person()?.roles.some((role) => role === 'FOREMAN' || role === 'SITE_MANAGER') ?? false,
   );
 
   set(session: PersonalSession) {
@@ -60,7 +60,7 @@ export class PersonalSessionStore {
 }
 
 export function personalLanding(person: PersonIdentity) {
-  return person.roles.includes('FOREMAN') ? '/mis-obras' : '/supervision';
+  return '/mis-obras';
 }
 
 export function roleLabel(role: PersonalRole) {

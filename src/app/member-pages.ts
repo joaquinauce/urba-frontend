@@ -15,6 +15,7 @@ import {
 } from './api';
 import { DateField } from './date-field';
 import { formatArDate } from './date';
+import { timeGreeting } from './greeting';
 import { formatQuantity, quantityRule, validQuantity } from './quantity';
 import { PersonalSessionStore, roleLabel } from './session';
 
@@ -62,7 +63,7 @@ type MemberWorkDetail = {
       <div class="page-heading">
         <div>
           <span class="eyebrow dark">{{ session.canWrite() ? 'AVANCE DE OBRAS' : 'SUPERVISIÓN' }}</span>
-          <h1>Mis obras</h1>
+          <h1>{{ greeting }}{{ session.person()?.fullName ? ', ' + session.person()?.fullName : '' }}.</h1>
           <p>{{ session.canWrite() ? 'Seleccioná una obra para consultar o informar el avance.' : 'Consultá objetivos, informes, fotografías y estadísticas.' }}</p>
         </div>
       </div>
@@ -100,6 +101,7 @@ export class MemberWorksPage implements OnInit {
   private readonly router = inject(Router);
   readonly session = inject(PersonalSessionStore);
   readonly arDate = formatArDate;
+  readonly greeting = timeGreeting();
   readonly label = roleLabel;
   works: MemberWork[] = [];
   loading = true;
@@ -143,7 +145,8 @@ export class MemberWorksPage implements OnInit {
       @if (detail) {
         <div class="page-heading member-heading">
           <div>
-            <span class="eyebrow dark">{{ canWrite ? 'CAPATAZ' : 'JEFE DE OBRA · SOLO LECTURA' }}</span>
+            <span class="eyebrow dark">{{ session.person()?.roles?.includes('SITE_MANAGER') ? 'JEFE DE OBRA' : 'CAPATAZ' }}</span>
+            <p class="member-greeting">{{ greeting }}, {{ session.person()?.fullName }}.</p>
             <h1>{{ detail.work.name }}</h1>
             <p>{{ detail.work.location || 'Sin ubicación' }} · {{ detail.work.status }} · Finaliza {{ arDate(detail.work.estimatedEndDate) }}</p>
           </div>
@@ -267,6 +270,7 @@ export class MemberWorkPage implements OnInit {
   private readonly cdr = inject(ChangeDetectorRef);
   readonly session = inject(PersonalSessionStore);
   readonly arDate = formatArDate;
+  readonly greeting = timeGreeting();
   readonly qty = formatQuantity;
   readonly rule = quantityRule;
   readonly quantity = quantity;

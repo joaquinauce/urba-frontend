@@ -19,8 +19,9 @@ import { PersonalRole, roleLabel } from './session';
 
 type PersonForm = {
   fullName: string;
-  siteManager: boolean;
-  foreman: boolean;
+  role: PersonalRole | 'ADMINISTRATOR' | '';
+  email: string;
+  password: string;
   isActive: boolean;
 };
 
@@ -33,13 +34,13 @@ type PersonForm = {
         <div>
           <span class="eyebrow dark">EQUIPO Y PERMISOS</span>
           <h1>Personas</h1>
-          <p>Gestioná jefes de obra, capataces y sus códigos personales.</p>
+          <p>Gestioná administradores, jefes de obra y capataces.</p>
         </div>
       </div>
 
       <div class="management-steps" aria-label="Pasos para habilitar el acceso">
-        <div><span>1</span><strong>Creá la persona</strong><small>Elegí uno o ambos roles.</small></div>
-        <div><span>2</span><strong>Entregá su código</strong><small>Se muestra una sola vez.</small></div>
+        <div><span>1</span><strong>Creá la persona</strong><small>Elegí su función y acceso.</small></div>
+        <div><span>2</span><strong>Entregá su acceso</strong><small>Email y contraseña o código personal.</small></div>
         <div><span>3</span><strong>Asigná obras</strong><small>Desde el detalle de cada obra.</small></div>
       </div>
 
@@ -66,15 +67,17 @@ type PersonForm = {
               <input name="fullName" [(ngModel)]="form.fullName" maxlength="201" required>
             </label>
             <fieldset class="role-fieldset">
-              <legend>¿Qué puede hacer?</legend>
-              <label class="role-option" [class.selected]="form.siteManager"><input type="checkbox" name="siteManager" [(ngModel)]="form.siteManager"><span><strong>Jefe de obra</strong><small>Consulta objetivos, avances, informes y fotografías.</small></span></label>
-              <label class="role-option" [class.selected]="form.foreman"><input type="checkbox" name="foreman" [(ngModel)]="form.foreman"><span><strong>Capataz</strong><small>Consulta la obra y registra avances, informes y fotos.</small></span></label>
+              <legend>Tipo de usuario</legend>
+              <label class="role-option" [class.selected]="form.role==='ADMINISTRATOR'"><input type="radio" name="role" value="ADMINISTRATOR" [checked]="form.role==='ADMINISTRATOR'" (change)="form.role='ADMINISTRATOR'"><span><strong>Administrador</strong><small>Gestiona obras, personas y objetivos.</small></span></label>
+              <label class="role-option" [class.selected]="form.role==='SITE_MANAGER'"><input type="radio" name="role" value="SITE_MANAGER" [checked]="form.role==='SITE_MANAGER'" (change)="form.role='SITE_MANAGER'"><span><strong>Jefe de obra</strong><small>Consulta la obra y registra avances, informes y fotos.</small></span></label>
+              <label class="role-option" [class.selected]="form.role==='FOREMAN'"><input type="radio" name="role" value="FOREMAN" [checked]="form.role==='FOREMAN'" (change)="form.role='FOREMAN'"><span><strong>Capataz</strong><small>Consulta la obra y registra avances, informes y fotos.</small></span></label>
             </fieldset>
+            @if (form.role==='ADMINISTRATOR' || form.role==='SITE_MANAGER') {<label>Email<input type="email" name="email" [(ngModel)]="form.email" autocomplete="off" [required]="!editing || !!originalEmail || form.role !== originalRole"></label><label>{{ editing ? 'Nueva contraseña' : 'Contraseña' }}<span class="password-field"><input type="password" [attr.type]="showPassword ? 'text' : 'password'" name="password" [(ngModel)]="form.password" [required]="!editing || (form.role !== originalRole && !originalHasPassword)" minlength="10" autocomplete="new-password" [placeholder]="editing ? 'Escribí una nueva clave solo si querés cambiarla' : ''"><button type="button" class="password-toggle" [attr.aria-label]="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'" [attr.aria-pressed]="showPassword" (click)="showPassword=!showPassword" title="Mostrar u ocultar contraseña"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>@if(!showPassword){<path d="M3 3l18 18"/>}</svg></button></span>@if(editing){<small class="field-hint">Si no escribís una nueva, la clave actual sigue funcionando.</small>}</label>}
             @if (editing) {
-              <label class="check"><input type="checkbox" name="isActive" [(ngModel)]="form.isActive"> Persona activa</label>
+              <label class="check"><input type="checkbox" name="isActive" [(ngModel)]="form.isActive"> Permitir que ingrese</label>
             }
             <div class="actions">
-              <button class="primary" [disabled]="busy">{{ busy ? 'Guardando…' : editing ? 'Guardar cambios' : 'Crear y generar código' }}</button>
+              <button class="primary" [disabled]="busy">{{ busy ? 'Guardando…' : editing ? 'Guardar cambios' : 'Crear persona' }}</button>
               @if (editing) { <button class="ghost" type="button" (click)="reset()">Cancelar</button> }
             </div>
           </form>
@@ -90,12 +93,12 @@ type PersonForm = {
                 <div class="avatar">{{ initials(person.fullName) }}</div>
                 <div class="row-main">
                   <strong>{{ person.fullName }}</strong>
-                  <small>{{ person.isActive ? 'Activa' : 'Inactiva' }} · {{ person.hasCode ? 'Código configurado' : 'Sin código' }}</small>
+                  <small>{{ person.isActive ? 'Activa' : 'Inactiva' }} · {{ person.email ? person.email : person.hasCode ? 'Código configurado' : 'Sin código' }}</small>
                 </div>
                 <span class="status" [class.verde]="person.isActive">{{ person.isActive ? 'Activa' : 'Inactiva' }}</span>
               </div>
               <div class="role-chips">
-                @for (role of person.roles; track role) { <span>{{ label(role) }}</span> }
+                @for (role of person.roles; track role) { <span>{{ role === 'ADMINISTRATOR' ? 'Administrador' : label(role) }}</span> }
               </div>
               <p class="assignment-summary">
                 <strong>{{ person.activeAssignments }}</strong> asignación(es) activa(s)
@@ -104,7 +107,7 @@ type PersonForm = {
               @if (person.lastAccessAt) { <small>Último acceso: {{ dateTime(person.lastAccessAt) }}</small> }
               <div class="actions person-actions">
                 <button class="ghost small" type="button" (click)="edit(person)">Editar</button>
-                <button class="ghost small" type="button" (click)="rotate(person)">{{ person.hasCode ? 'Generar código nuevo' : 'Generar código' }}</button>
+                @if(person.roles.includes('FOREMAN')){<button class="ghost small" type="button" (click)="rotate(person)">{{ person.hasCode ? 'Generar código nuevo' : 'Generar código' }}</button>}
               </div>
             </article>
           }
@@ -124,12 +127,16 @@ export class PeoplePage implements OnInit {
   busy = false;
   editing = '';
   originalActive = true;
+  originalRole: PersonalRole | 'ADMINISTRATOR' | '' = '';
+  originalEmail = '';
+  originalHasPassword = false;
   error = '';
   notice = '';
   query = '';
   revealedCode = '';
   revealedName = '';
   form = this.blank();
+  showPassword = false;
   readonly label = roleLabel;
 
   ngOnInit() {
@@ -137,14 +144,11 @@ export class PeoplePage implements OnInit {
   }
 
   blank(): PersonForm {
-    return { fullName: '', siteManager: false, foreman: true, isActive: true };
+    return { fullName: '', role: '', email: '', password: '', isActive: true };
   }
 
-  roles(): PersonalRole[] {
-    return [
-      ...(this.form.siteManager ? (['SITE_MANAGER'] as const) : []),
-      ...(this.form.foreman ? (['FOREMAN'] as const) : []),
-    ];
+  roles(): (PersonalRole | 'ADMINISTRATOR')[] {
+    return this.form.role ? [this.form.role] : [];
   }
 
   filteredPeople() {
@@ -153,7 +157,7 @@ export class PeoplePage implements OnInit {
     return this.people.filter(
       (person) =>
         person.fullName.toLocaleLowerCase('es-AR').includes(value) ||
-        person.roles.some((role) => roleLabel(role).toLocaleLowerCase('es-AR').includes(value)),
+        person.roles.some((role) => (role === 'ADMINISTRATOR' ? 'Administrador' : roleLabel(role)).toLocaleLowerCase('es-AR').includes(value)),
     );
   }
 
@@ -191,17 +195,26 @@ export class PeoplePage implements OnInit {
     this.originalActive = person.isActive;
     this.form = {
       fullName: person.fullName,
-      siteManager: person.roles.includes('SITE_MANAGER'),
-      foreman: person.roles.includes('FOREMAN'),
+      role: person.roles.includes('ADMINISTRATOR') ? 'ADMINISTRATOR' : person.roles.includes('SITE_MANAGER') ? 'SITE_MANAGER' : 'FOREMAN',
+      email: person.email ?? '',
+      password: '',
       isActive: person.isActive,
     };
+    this.originalRole = this.form.role;
+    this.originalEmail = this.form.email;
+    this.originalHasPassword = person.hasPassword ?? false;
+    this.showPassword = false;
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   reset() {
     this.editing = '';
     this.originalActive = true;
+    this.originalRole = '';
+    this.originalEmail = '';
+    this.originalHasPassword = false;
     this.form = this.blank();
+    this.showPassword = false;
   }
 
   async save() {
@@ -224,15 +237,18 @@ export class PeoplePage implements OnInit {
       if (this.editing) {
         await this.api.patch(`admin/people/${this.editing}`, {
           fullName: this.form.fullName,
-          roles,
-          isActive: this.form.isActive,
+          ...(this.form.role !== this.originalRole ? { roles } : {}),
+          ...(this.form.isActive !== this.originalActive ? { isActive: this.form.isActive } : {}),
+          ...(this.form.email !== this.originalEmail ? { email: this.form.email } : {}),
+          ...(this.form.password ? { password: this.form.password } : {}),
         });
         this.notice = 'Persona actualizada.';
       } else {
         const created = await this.api.post<{ id: string; fullName: string }>(
           'admin/people',
-          { fullName: this.form.fullName, roles },
+          { fullName: this.form.fullName, roles, email: this.form.email, password: this.form.password },
         );
+        if (!roles.includes('FOREMAN')) { this.notice = 'Persona creada.'; this.reset(); await this.load(); return; }
         let credentials: { code: string };
         try {
           credentials = await this.api.post<{ code: string }>(

@@ -42,14 +42,13 @@ describe('rutas autorizadas por perfil', () => {
     expect(TestBed.runInInjectionContext(adminGuard)).toBe(true);
   });
 
-  it('impide escrituras al jefe de obra y permite el flujo al capataz', () => {
+  it('permite el flujo de carga al jefe de obra y al capataz', () => {
     personal.set({
       accessToken: 'site-token',
       person: { id: 'site', administratorId: 'admin', fullName: 'Jefe', roles: ['SITE_MANAGER'] },
     });
     expect(TestBed.runInInjectionContext(siteManagerGuard)).toBe(true);
-    const denied = TestBed.runInInjectionContext(personalForemanGuard);
-    expect(router.serializeUrl(denied === true ? router.createUrlTree(['/']) : denied)).toBe('/supervision');
+    expect(TestBed.runInInjectionContext(personalForemanGuard)).toBe(true);
 
     personal.set({
       accessToken: 'foreman-token',

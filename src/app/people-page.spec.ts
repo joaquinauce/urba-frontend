@@ -91,8 +91,59 @@ describe('asignaciones múltiples', () => {
   });
 });
 
-describe('alta y código personal', () => {
-  it('crea la persona y muestra únicamente el código devuelto por la rotación', async () => {
+describe('alta con credenciales', () => {
+  it('edita nombre, clave y acceso sin reenviar el rol ni el email', async () => {
+    const patch = vi.fn(async () => ({}));
+    const person: PersonSummary = {
+      id: 'person-edit', fullName: 'Nombre anterior', email: 'jefa@example.com',
+      isActive: true, hasCode: false, hasPassword: true, failedAttempts: 0,
+      lockedUntil: null, lastAccessAt: null, roles: ['SITE_MANAGER'], activeAssignments: 0,
+    };
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
+    vi.stubGlobal('confirm', () => true);
+    TestBed.configureTestingModule({ providers: [{ provide: Api, useValue: {
+      get: vi.fn(async (path: string) => path === 'admin/people' ? [person] : []), patch,
+    } }] });
+    const fixture = TestBed.createComponent(PeoplePage);
+    await fixture.componentInstance.load();
+    fixture.detectChanges();
+    (fixture.nativeElement.querySelector('.person-actions button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.editing).toBe('person-edit');
+    fixture.componentInstance.form.fullName = 'Nombre nuevo';
+    fixture.componentInstance.form.password = 'clave-nueva-123';
+    fixture.componentInstance.form.isActive = false;
+    await fixture.componentInstance.save();
+    expect(patch).toHaveBeenCalledWith('admin/people/person-edit', {
+      fullName: 'Nombre nuevo', password: 'clave-nueva-123', isActive: false,
+    });
+  });
+
+  it('permite elegir un solo tipo de usuario y mostrar la contraseña', async () => {
+    TestBed.configureTestingModule({ providers: [{ provide: Api, useValue: { get: vi.fn(async () => []) } }] });
+    const fixture = TestBed.createComponent(PeoplePage);
+    fixture.detectChanges();
+    const admin = fixture.nativeElement.querySelector('input[value="ADMINISTRATOR"]') as HTMLInputElement;
+    const foreman = fixture.nativeElement.querySelector('input[value="FOREMAN"]') as HTMLInputElement;
+    admin.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.roles()).toEqual(['ADMINISTRATOR']);
+    foreman.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.roles()).toEqual(['FOREMAN']);
+    admin.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const password = fixture.nativeElement.querySelector('input[name="password"]') as HTMLInputElement;
+    expect(password.type).toBe('password');
+    (fixture.nativeElement.querySelector('.password-toggle') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(password.type).toBe('text');
+  });
+
+  it('crea al jefe de obra con email y contraseña', async () => {
     localStorage.clear();
     sessionStorage.clear();
     const post = vi.fn(async (path: string) =>
@@ -115,26 +166,22 @@ describe('alta y código personal', () => {
     const fixture = TestBed.createComponent(PeoplePage);
     fixture.componentInstance.form = {
       fullName: 'Jefa Nueva',
-      siteManager: true,
-      foreman: false,
+      role: 'SITE_MANAGER',
+      email: 'jefa@example.com',
+      password: 'clave-segura-123',
       isActive: true,
     };
     await fixture.componentInstance.save();
     expect(post).toHaveBeenNthCalledWith(1, 'admin/people', {
       fullName: 'Jefa Nueva',
       roles: ['SITE_MANAGER'],
+      email: 'jefa@example.com',
+      password: 'clave-segura-123',
     });
-    expect(post).toHaveBeenNthCalledWith(
-      2,
-      'admin/people/person-new/code/rotate',
-      {},
-    );
-    expect(fixture.componentInstance.revealedCode).toBe('123456');
-    expect(`${JSON.stringify(localStorage)}${JSON.stringify(sessionStorage)}`).not.toContain(
-      '123456',
-    );
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(fixture.componentInstance.revealedCode).toBe('');
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.management-steps')).not.toBeNull();
-    expect(fixture.nativeElement.textContent).toContain('Se muestra una sola vez');
+    expect(fixture.nativeElement.textContent).toContain('Entregá su acceso');
   });
 });

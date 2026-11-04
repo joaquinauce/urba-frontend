@@ -18,8 +18,8 @@ function person(roles: PersonIdentity['roles']): PersonIdentity {
 describe('sesiones personales tipadas', () => {
   beforeEach(() => sessionStorage.clear());
 
-  it('dirige al jefe de obra hacia la supervisión de solo lectura', () => {
-    expect(personalLanding(person(['SITE_MANAGER']))).toBe('/supervision');
+  it('dirige al jefe de obra hacia la carga de sus obras', () => {
+    expect(personalLanding(person(['SITE_MANAGER']))).toBe('/mis-obras');
   });
 
   it('dirige al capataz hacia el flujo de carga, incluso si posee ambos roles', () => {

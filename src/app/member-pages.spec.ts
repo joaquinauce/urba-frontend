@@ -74,17 +74,16 @@ describe('experiencia personal por permisos', () => {
     return fixture;
   }
 
-  it('mantiene al jefe de obra en una interfaz de solo lectura', async () => {
+  it('habilita la carga al jefe de obra', async () => {
     const fixture = await render(['SITE_MANAGER']);
-    expect(fixture.componentInstance.canWrite).toBe(false);
-    expect(fixture.nativeElement.textContent).toContain('SOLO LECTURA');
-    expect(fixture.nativeElement.querySelector('.member-submit-panel')).toBeNull();
-    expect(fixture.nativeElement.querySelector('.supervision-hero')).not.toBeNull();
-    expect(fixture.nativeElement.querySelector('.report-flow')).toBeNull();
+    expect(fixture.componentInstance.canWrite).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('JEFE DE OBRA');
+    expect(fixture.nativeElement.querySelector('.member-submit-panel')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.report-flow')).not.toBeNull();
     expect(get).toHaveBeenCalledWith('member/works/work-1', 'person');
   });
 
-  it('habilita la carga únicamente al capataz', async () => {
+  it('habilita la carga al capataz', async () => {
     const fixture = await render(['FOREMAN']);
     expect(fixture.componentInstance.canWrite).toBe(true);
     expect(fixture.nativeElement.querySelector('.member-submit-panel')).not.toBeNull();

@@ -11,15 +11,26 @@ export interface Goal {id:string;activityId:string;recurrenceId?:string;date:str
 export interface ReportItem {id:string;goalId:string;activityId:string;description:string;expected:number;actual:number;unit:string;customUnit?:string;quantityStep?:number|null;quantityDecimals?:number|null}
 export interface Report {id:string;workId:string;workName:string;date:string;foremanName:string;submittedByPersonId?:string|null;submittedBy?:{personId:string|null;name:string;accessType:'PERSONAL'|'LEGACY'};observations:string;submittedAt:string;updatedAt:string;items:ReportItem[];photos:{id:string}[];compliance:number|null}
 export interface PublicToday {work:{id:string;name:string;foremanName:string};date:string;goals:Goal[];report:Report|null;editable:boolean;closeTime:string}
-export interface PersonSummary {id:string;fullName:string;isActive:boolean;hasCode:boolean;failedAttempts:number;lockedUntil:string|null;lastAccessAt:string|null;roles:PersonalRole[];activeAssignments:number}
+export interface PersonSummary {id:string;fullName:string;isActive:boolean;hasCode:boolean;failedAttempts:number;lockedUntil:string|null;lastAccessAt:string|null;roles:(PersonalRole|'ADMINISTRATOR')[];email?:string|null;hasPassword?:boolean;activeAssignments:number}
 export interface WorkAssignment {id:string;personId:string;personName:string;roleCode:PersonalRole;isPrimary:boolean;assignedAt:string;unassignedAt:string|null;active:boolean}
 export interface MemberWork {id:string;name:string;description:string|null;location:string|null;status:string;startDate:string;estimatedEndDate:string;foremanName:string;roles:PersonalRole[]}
+export interface AdministratorIdentity {id:string;email:string;fullName:string;role:'ADMINISTRATOR'}
 
 @Injectable({providedIn:'root'})
 export class AuthStore {
   token = signal(sessionStorage.getItem('urba-token') ?? '');
-  set(token:string) {sessionStorage.setItem('urba-token',token);this.token.set(token);}
-  clear() {sessionStorage.removeItem('urba-token');this.token.set('');}
+  administrator = signal<AdministratorIdentity|null>(this.restoredAdministrator());
+  private restoredAdministrator():AdministratorIdentity|null {
+    try {
+      const raw=sessionStorage.getItem('urba-administrator');
+      if(!raw)return null;
+      const value=JSON.parse(raw) as AdministratorIdentity;
+      return typeof value.fullName==='string'&&typeof value.id==='string'?value:null;
+    }catch{return null}
+  }
+  set(token:string,administrator?:AdministratorIdentity) {sessionStorage.setItem('urba-token',token);this.token.set(token);this.setIdentity(administrator??null);}
+  setIdentity(administrator:AdministratorIdentity|null) {if(administrator)sessionStorage.setItem('urba-administrator',JSON.stringify(administrator));else sessionStorage.removeItem('urba-administrator');this.administrator.set(administrator);}
+  clear() {sessionStorage.removeItem('urba-token');this.token.set('');this.setIdentity(null);}
 }
 
 @Injectable({providedIn:'root'})

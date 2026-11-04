@@ -15,7 +15,7 @@ export const siteManagerGuard = () => {
 };
 export const personalForemanGuard = () => {
   const person = inject(PersonalSessionStore).person();
-  return person?.roles.includes('FOREMAN') ? true : person ? inject(Router).createUrlTree([personalLanding(person)]) : inject(Router).createUrlTree(['/login']);
+  return person?.roles.some((role) => role === 'FOREMAN' || role === 'SITE_MANAGER') ? true : person ? inject(Router).createUrlTree([personalLanding(person)]) : inject(Router).createUrlTree(['/login']);
 };
 export const routes: Routes = [
   {path:'',pathMatch:'full',redirectTo:'login'},
