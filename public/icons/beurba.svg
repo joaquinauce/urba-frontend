@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">BeUrba</title>
+  <rect width="512" height="512" rx="96" fill="#fff"/>
+  <path fill="#111" fill-rule="evenodd" d="M98 77h70v150c21-29 53-46 94-46 69 0 117 53 117 121s-48 121-117 121c-42 0-74-18-95-48v43H98V77Zm154 285c37 0 61-25 61-60s-24-60-61-60-62 25-62 60 25 60 62 60Z"/>
+  <circle cx="410" cy="182" r="35" fill="#fb8d00"/>
+</svg>
