@@ -163,6 +163,7 @@ export class MemberWorksPage implements OnInit {
         }
 
         @if (canWrite) {
+          <a class="expense-entry" [routerLink]="['/mis-obras', id, 'gastos']"><span><strong>Rendición de gastos</strong><small>Registrá un gasto con foto del comprobante</small></span><span aria-hidden="true">→</span></a>
           <div class="flow-steps report-flow" aria-label="Pasos para enviar el informe">
             <div class="done"><span>1</span><strong>Obra elegida</strong></div>
             <div class="active"><span>2</span><strong>Cargá el avance</strong></div>

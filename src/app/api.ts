@@ -61,6 +61,8 @@ export class Api {
   patch<T>(path:string,body:unknown):Promise<T> {return firstValueFrom(this.http.patch<T>(`/api/${path}`,body,{headers:this.headers()}));}
   delete<T>(path:string):Promise<T> {return firstValueFrom(this.http.delete<T>(`/api/${path}`,{headers:this.headers()}));}
   upload<T>(path:string,file:File,mode:'admin'|'public'|'foreman'|'person'='admin'):Promise<T> {const data=new FormData();data.append('photo',file);return firstValueFrom(this.http.post<T>(`/api/${path}`,data,{headers:this.requestHeaders(mode)}));}
+  uploadExpense<T>(path:string,fields:Record<string,string>,file:File):Promise<T> {const data=new FormData();for(const [key,value] of Object.entries(fields))data.append(key,value);data.append('photo',file);return firstValueFrom(this.http.post<T>(`/api/${path}`,data,{headers:this.requestHeaders('person')}));}
+  expensePhoto(id:string,mode:'admin'|'person'='admin'):Promise<Blob> {return firstValueFrom(this.http.get(`/api/${mode==='admin'?'admin':'member'}/expenses/${id}/receipt`,{headers:this.requestHeaders(mode),responseType:'blob'}));}
   photo(id:string):Promise<Blob> {return firstValueFrom(this.http.get(`/api/admin/photos/${id}`,{headers:this.headers(),responseType:'blob'}));}
   foremanPhoto(id:string):Promise<Blob>{return firstValueFrom(this.http.get(`/api/public/session/photos/${id}`,{headers:this.requestHeaders('foreman'),responseType:'blob'}))}
   memberPhoto(id:string):Promise<Blob>{return firstValueFrom(this.http.get(`/api/member/photos/${id}`,{headers:this.requestHeaders('person'),responseType:'blob'}))}
