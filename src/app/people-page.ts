@@ -41,6 +41,7 @@ type PersonForm = {
 
       @if (error && !modal) { <div class="alert error">{{ error }}</div> }
       @if (notice) { <div class="alert success">{{ notice }}</div> }
+      @if (revealedCode) { <div class="alert success" role="status">Código nuevo de {{ revealedName }}: <strong>{{ revealedCode }}</strong>. Compartilo por un canal seguro; se muestra solo ahora. <button type="button" class="ghost small" (click)="copyCode()">Copiar</button><button type="button" class="ghost small" (click)="dismissCode()">Cerrar</button></div> }
       <div class="people-list-head">
         <h2 class="list-heading">Equipo <span class="team-count">{{ filteredPeople().length }} {{ filteredPeople().length === 1 ? 'registrado' : 'registrados' }}</span></h2>
         <div class="people-list-tools">
@@ -66,9 +67,12 @@ type PersonForm = {
                     <p class="assignment-summary"><strong>{{ person.activeAssignments }}</strong> asignación(es) activa(s)@if (workNames[person.id]?.length) { · {{ workNames[person.id].join(' · ') }} }</p>
                   }
                   @if (person.lastAccessAt) { <small>Último acceso: {{ dateTime(person.lastAccessAt) }}</small> }
+                  @if (person.hasCode) { <small>Acceso personal: {{ isLocked(person) ? 'Bloqueado hasta ' + dateTime(person.lockedUntil!) : 'Habilitado' }} · Intentos fallidos: {{ person.failedAttempts }}</small> }
                   <div class="actions person-actions">
                     <button class="ghost small" type="button" (click)="edit(person)">Editar</button>
                     <button class="ghost small" type="button" (click)="changePassword(person)">Cambiar clave</button>
+                    @if (person.roles.includes('FOREMAN') || person.roles.includes('SITE_MANAGER')) { <button class="ghost small" type="button" [disabled]="busy" (click)="rotate(person)">{{ person.hasCode ? 'Rotar código' : 'Crear código' }}</button> }
+                    @if (person.hasCode && (person.failedAttempts || person.lockedUntil)) { <button class="ghost small" type="button" [disabled]="busy" (click)="unlock(person)">Desbloquear</button> }
                     <button class="ghost small" type="button" [disabled]="busy" (click)="requestStatus(person)">{{ person.isActive ? 'Inhabilitar' : 'Habilitar' }}</button>
                   </div>
                 </article>
@@ -404,6 +408,25 @@ export class PeoplePage implements OnInit {
     } finally {
       this.cdr.detectChanges();
     }
+  }
+
+  async unlock(person: PersonSummary) {
+    this.error = '';
+    this.busy = true;
+    try {
+      await this.api.post(`admin/people/${person.id}/unlock`, {});
+      this.notice = `Acceso de ${person.fullName} desbloqueado.`;
+      await this.load();
+    } catch (error) {
+      this.error = message(error);
+    } finally {
+      this.busy = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  isLocked(person: PersonSummary) {
+    return !!person.lockedUntil && new Date(person.lockedUntil).getTime() > Date.now();
   }
 
   async copyCode() {
