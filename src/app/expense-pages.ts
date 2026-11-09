@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Api, type Foreman, type PersonSummary, type PublicToday, type Work, localDate, message } from './api';
 import { formatArDate } from './date';
+import { prepareReceiptImage, RECEIPT_UPLOAD_LIMIT } from './receipt-image';
 
 type ExpenseType = { id: string; name: string; isActive: boolean };
 type Expense = { id: string; workId: string; workName: string; personId: string; personName: string; typeId: string; typeName: string; amountArs: string; occurredAt: string; workDate: string };
@@ -25,9 +26,10 @@ const when = (value: string) => new Intl.DateTimeFormat('es-AR', { dateStyle: 's
         <form (ngSubmit)="submit()">
           <label>Monto en ARS<input type="number" name="amount" inputmode="decimal" min="0.01" step="0.01" [(ngModel)]="amount" required placeholder="0,00"></label>
           <label>Tipo de gasto<select name="typeId" [(ngModel)]="typeId" required><option value="" disabled>Elegí un tipo</option>@for (type of types; track type.id) {<option [value]="type.id">{{ type.name }}</option>}</select></label>
-          <label class="expense-file">Fotografía del comprobante<input type="file" accept="image/*" (change)="choosePhoto($event)" required><small>Podés usar la cámara o elegir una foto de la galería. Máximo 12 MB.</small></label>
-          @if (photo) { <p class="expense-chosen">✓ {{ photo.name }}</p> }
-          <button class="primary wide expense-submit" [disabled]="busy || !types.length">{{ busy ? 'Registrando…' : 'Registrar gasto' }}</button>
+          <label class="expense-file">Fotografía del comprobante<input type="file" accept="image/*" (change)="choosePhoto($event)" required><small>Podés usar la cámara o elegir una foto de la galería. Las fotos grandes se optimizan automáticamente.</small></label>
+          @if (photoPreparing) { <p class="expense-chosen" role="status">Preparando fotografía…</p> }
+          @if (photo) { <p class="expense-chosen">✓ {{ photoName }} ({{ photoSize }})</p> }
+          <button class="primary wide expense-submit" [disabled]="busy || photoPreparing || !types.length">{{ busy ? 'Registrando…' : 'Registrar gasto' }}</button>
         </form>
       </section>
       <section class="panel"><h2>Mis rendiciones recientes</h2>
@@ -40,10 +42,11 @@ const when = (value: string) => new Intl.DateTimeFormat('es-AR', { dateStyle: 's
 })
 export class MemberExpensesPage implements OnInit {
   private api = inject(Api); private route = inject(ActivatedRoute); private cdr = inject(ChangeDetectorRef);
+  private photoSelection = 0;
   legacyMode = false;
   workId = ''; workName = ''; types: ExpenseType[] = []; recent: Expense[] = [];
   amount: number | null = null; typeId = ''; photo: File | null = null; photoInput: HTMLInputElement | null = null; requestId = crypto.randomUUID();
-  busy = false; loading = true; error = ''; notice = ''; money = ars; at = when;
+  busy = false; photoPreparing = false; photoName = ''; photoSize = ''; loading = true; error = ''; notice = ''; money = ars; at = when;
   ngOnInit() { this.workId = this.route.snapshot.paramMap.get('id') ?? ''; this.legacyMode = !this.workId; void this.load(); }
   backPath() { return this.legacyMode ? '/mi-obra' : `/mis-obras/${this.workId}`; }
   expensePath() { return this.legacyMode ? 'public/session/expenses' : `member/expenses/works/${this.workId}`; }
@@ -64,18 +67,37 @@ export class MemberExpensesPage implements OnInit {
     } catch (error) { this.error = message(error); }
     finally { this.loading = false; this.cdr.detectChanges(); }
   }
-  choosePhoto(event: Event) { this.photoInput = event.target as HTMLInputElement; this.photo = this.photoInput.files?.[0] ?? null; }
+  async choosePhoto(event: Event) {
+    const selection = ++this.photoSelection;
+    this.photoInput = event.target as HTMLInputElement;
+    const selected = this.photoInput.files?.[0];
+    this.photo = null; this.photoName = ''; this.photoSize = ''; this.error = '';
+    if (!selected) return;
+    this.photoPreparing = true; this.cdr.detectChanges();
+    try {
+      const prepared = await prepareReceiptImage(selected);
+      if (selection !== this.photoSelection) return;
+      if (prepared.size > RECEIPT_UPLOAD_LIMIT) throw new Error('La imagen supera los 25 MB. Elegí otra foto del comprobante.');
+      this.photo = prepared;
+      this.photoName = selected.name;
+      this.photoSize = `${prepared.size < 1024 * 1024 ? `${Math.round(prepared.size / 1024)} KB` : `${(prepared.size / 1024 / 1024).toFixed(1)} MB`}${prepared !== selected ? ' optimizada' : ''}`;
+    } catch (error) {
+      if (selection !== this.photoSelection) return;
+      this.error = message(error);
+      this.photoInput.value = '';
+    } finally { if (selection === this.photoSelection) { this.photoPreparing = false; this.cdr.detectChanges(); } }
+  }
   async submit() {
-    if (this.busy) return;
+    if (this.busy || this.photoPreparing) return;
     this.error = ''; this.notice = '';
-    if (!this.amount || this.amount <= 0 || !/^\d+(\.\d{1,2})?$/.test(String(this.amount))) { this.error = 'Ingresá un monto positivo con hasta dos decimales.'; return; }
-    if (!this.typeId) { this.error = 'Seleccioná el tipo de gasto.'; return; }
-    if (!this.photo || this.photo.size > 12 * 1024 * 1024) { this.error = 'Adjuntá una fotografía de hasta 12 MB.'; return; }
+    if (!this.amount || this.amount <= 0 || !/^\d+(\.\d{1,2})?$/.test(String(this.amount))) { this.error = 'Ingresá un monto positivo con hasta dos decimales.'; this.cdr.detectChanges(); return; }
+    if (!this.typeId) { this.error = 'Seleccioná el tipo de gasto.'; this.cdr.detectChanges(); return; }
+    if (!this.photo) { this.error = 'Adjuntá una fotografía del comprobante.'; this.cdr.detectChanges(); return; }
     this.busy = true;
     try {
       await this.api.uploadExpense(this.expensePath(), { amount: String(this.amount), typeId: this.typeId, requestId: this.requestId }, this.photo, this.mode());
       this.notice = 'Gasto registrado. Ya aparece en tus rendiciones recientes.';
-      this.amount = null; this.typeId = ''; this.photo = null; if (this.photoInput) this.photoInput.value = ''; this.requestId = crypto.randomUUID();
+      this.amount = null; this.typeId = ''; this.photo = null; this.photoName = ''; this.photoSize = ''; if (this.photoInput) this.photoInput.value = ''; this.requestId = crypto.randomUUID();
       try { this.recent = await this.api.get<Expense[]>(this.expensePath(), this.mode()); }
       catch { this.notice = 'Gasto registrado. Actualizá la pantalla para ver la lista reciente.'; }
     } catch (error) { this.error = message(error); }
@@ -114,7 +136,7 @@ export class MemberExpensesPage implements OnInit {
       </section>
       @if (editingType) {<div class="app-modal-backdrop" (click)="closeTypeModal()"><section class="app-modal expense-type-modal" role="dialog" aria-modal="true" aria-labelledby="edit-expense-type-title" (click)="$event.stopPropagation()"><div class="app-modal-head"><div><span class="eyebrow dark">TIPOS DE GASTOS</span><h2 id="edit-expense-type-title">Editar tipo</h2></div><button type="button" class="app-modal-close" aria-label="Cerrar" (click)="closeTypeModal()">×</button></div><form (ngSubmit)="saveEdit()"><label>Nombre<input name="editTypeName" [(ngModel)]="editTypeName" maxlength="100" required autofocus></label>@if (modalError) {<div class="alert error" role="alert">{{ modalError }}</div>}<div class="actions modal-actions"><button class="ghost" type="button" (click)="closeTypeModal()">Cancelar</button><button class="primary" [disabled]="typeBusy">{{ typeBusy ? 'Guardando…' : 'Guardar cambios' }}</button></div></form></section></div>}
       @if (confirmType) {<div class="app-modal-backdrop" (click)="closeTypeModal()"><section class="app-modal status-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="disable-expense-type-title" (click)="$event.stopPropagation()"><div class="app-modal-head"><div><span class="eyebrow dark">TIPOS DE GASTOS</span><h2 id="disable-expense-type-title">Deshabilitar tipo</h2></div><button type="button" class="app-modal-close" aria-label="Cerrar" (click)="closeTypeModal()">×</button></div><div class="status-confirm-icon" aria-hidden="true">!</div><p class="modal-intro">¿Deshabilitar <strong>{{ confirmType.name }}</strong>? Dejará de aparecer en nuevas rendiciones.</p>@if (modalError) {<div class="alert error" role="alert">{{ modalError }}</div>}<div class="actions modal-actions"><button class="ghost" type="button" (click)="closeTypeModal()">Cancelar</button><button class="primary" type="button" [disabled]="typeBusy" (click)="confirmDisable()">{{ typeBusy ? 'Guardando…' : 'Deshabilitar' }}</button></div></section></div>}
-      @if (receiptUrl) {<div class="expense-lightbox" role="dialog" aria-modal="true" aria-label="Comprobante" (click)="closeReceipt()"><button type="button" class="ghost" (click)="closeReceipt()">Cerrar ×</button><img [src]="receiptUrl" alt="Fotografía del comprobante" (click)="$event.stopPropagation()"></div>}
+      @if (receiptUrl) {<div class="expense-lightbox" role="dialog" aria-modal="true" aria-label="Comprobante" (click)="closeReceipt()"><button type="button" class="ghost expense-lightbox-close" aria-label="Cerrar comprobante" (click)="closeReceipt(); $event.stopPropagation()">×</button><img [src]="receiptUrl" alt="Fotografía del comprobante" (click)="$event.stopPropagation()"></div>}
     </main>
   `,
 })
@@ -125,7 +147,7 @@ export class AdminExpensesPage implements OnInit, OnDestroy {
   total = 0; loading = false; typeBusy = false; typeName = ''; editingType: ExpenseType | null = null; editTypeName = ''; confirmType: ExpenseType | null = null; modalError = ''; receiptUrl = ''; error = ''; notice = '';
   money = ars; at = when; arDate = formatArDate;
   ngOnInit() { void this.load(); }
-  ngOnDestroy() { this.closeReceipt(); }
+  ngOnDestroy() { if (this.receiptUrl) URL.revokeObjectURL(this.receiptUrl); }
   @HostListener('document:keydown.escape') onEscape() { if (this.editingType || this.confirmType) this.closeTypeModal(); else if (this.receiptUrl) this.closeReceipt(); }
   async load() {
     try { const [works, people, legacyForemen, types] = await Promise.all([
@@ -199,5 +221,5 @@ export class AdminExpensesPage implements OnInit, OnDestroy {
     catch (error) { this.error = message(error); }
     finally { this.cdr.detectChanges(); }
   }
-  closeReceipt() { if (this.receiptUrl) URL.revokeObjectURL(this.receiptUrl); this.receiptUrl = ''; }
+  closeReceipt() { if (this.receiptUrl) URL.revokeObjectURL(this.receiptUrl); this.receiptUrl = ''; this.cdr.detectChanges(); }
 }

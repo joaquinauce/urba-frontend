@@ -72,6 +72,7 @@ export function message(error:unknown):string {
   if (error instanceof HttpErrorResponse) {
     if (error.status===0) return 'Sin conexión. Los datos no fueron enviados; podés intentarlo de nuevo.';
     if (error.status===401) return typeof error.error?.message==='string' ? error.error.message : 'La sesión venció. Volvé a ingresar.';
+    if (error.status===413) return 'La imagen es demasiado grande para subirla. Probá con otra foto o una de menor tamaño.';
     const value=error.error?.message;
     return Array.isArray(value) ? value.join('. ') : typeof value==='string' ? value : 'No se pudo completar la operación.';
   }

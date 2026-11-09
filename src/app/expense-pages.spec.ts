@@ -28,6 +28,23 @@ describe('rendiciones del capataz', () => {
 });
 
 describe('rendiciones administrativas', () => {
+  it('cierra el comprobante apenas se pulsa la cruz', async () => {
+    TestBed.configureTestingModule({ providers: [{ provide: Api, useValue: {
+      get: vi.fn(async () => []), expensePhoto: vi.fn(async () => new Blob(['foto'], { type: 'image/webp' })),
+    } }] });
+    const create = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:comprobante');
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    try {
+      const fixture = TestBed.createComponent(AdminExpensesPage);
+      await fixture.componentInstance.load();
+      await fixture.componentInstance.openReceipt('receipt-1');
+      expect(fixture.nativeElement.querySelector('.expense-lightbox')).not.toBeNull();
+      (fixture.nativeElement.querySelector('.expense-lightbox-close') as HTMLButtonElement).click();
+      expect(fixture.nativeElement.querySelector('.expense-lightbox')).toBeNull();
+      expect(revoke).toHaveBeenCalledWith('blob:comprobante');
+    } finally { create.mockRestore(); revoke.mockRestore(); }
+  });
+
   it('muestra solo capataces y permite editar el tipo desde un modal', async () => {
     const types = [{ id: 'type-1', name: 'Comida', isActive: true }];
     const patch = vi.fn(async () => ({}));
