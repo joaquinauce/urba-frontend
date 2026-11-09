@@ -37,7 +37,7 @@ export class App {
   protected showNewPassword = false;
   protected showConfirmPassword = false;
   private readonly router = inject(Router);
-  protected isPublic() { return this.router.url.startsWith('/obra/') || this.router.url === '/mi-obra' || this.router.url === '/capataz'; }
+  protected isPublic() { return this.router.url.startsWith('/obra/') || this.router.url.startsWith('/mi-obra') || this.router.url === '/capataz'; }
   protected logout() { this.auth.clear(); this.router.navigateByUrl('/login'); }
   protected logoutPersonal() { this.personal.clear(); this.router.navigateByUrl('/login'); }
   protected personalRole() { return (this.personal.person()?.roles ?? []).map(roleLabel).join(' · '); }

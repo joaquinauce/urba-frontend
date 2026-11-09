@@ -441,7 +441,7 @@ export class PeoplePage implements OnInit {
   template: `
     <section class="panel assignment-panel">
       <div class="section-title">
-        <div><h2>Responsables</h2><p>Jefes de obra y capataces con acceso a esta obra.</p></div>
+        <div><h2>Responsables</h2><p>Capataz responsable y personas con acceso a esta obra.</p></div>
         <button class="ghost small" type="button" (click)="showHistory = !showHistory">{{ showHistory ? 'Ocultar historial' : 'Ver historial' }}</button>
       </div>
       @if (error) { <div class="alert error">{{ error }}</div> }
@@ -451,21 +451,24 @@ export class PeoplePage implements OnInit {
         <div class="assignment-groups">
           @for (role of roles; track role) {
             <div>
-              <div class="assignment-role-head"><h3>{{ label(role) }}</h3><span>{{ activeFor(role).length }} activo(s)</span></div>
+              <div class="assignment-role-head"><h3>{{ label(role) }}</h3><span>{{ activeFor(role).length + (role === 'FOREMAN' && primaryForemanName ? 1 : 0) }} activo(s)</span></div>
+              @if (role === 'FOREMAN' && primaryForemanName) {
+                <div class="assignment-row"><div><strong>{{ primaryForemanName }}</strong><small>Capataz responsable de la obra</small></div></div>
+              }
               @for (assignment of activeFor(role); track assignment.id) {
                 <div class="assignment-row">
                   <div><strong>{{ assignment.personName }}</strong><small>Desde {{ arDateTime(assignment.assignedAt) }}</small></div>
                   <button class="ghost small" type="button" (click)="unassign(assignment)">Desasignar</button>
                 </div>
               }
-              @if (!activeFor(role).length) { <div class="assignment-empty">Sin responsables asignados para este rol.</div> }
-              <div class="inline-assignment">
+              @if (!activeFor(role).length && !(role === 'FOREMAN' && primaryForemanName)) { <div class="assignment-empty">Sin responsables asignados para este rol.</div> }
+              @if (eligible(role).length) {<div class="inline-assignment">
                 <select [name]="'person-' + role" [(ngModel)]="selected[role]" [disabled]="!eligible(role).length" [attr.aria-label]="'Seleccionar ' + label(role)">
                   <option value="">{{ eligible(role).length ? 'Seleccionar persona' : 'No hay personas disponibles' }}</option>
                   @for (person of eligible(role); track person.id) { <option [value]="person.id">{{ person.fullName }}</option> }
                 </select>
                 <button class="primary small" type="button" [disabled]="!selected[role] || busy" (click)="assign(role)">Asignar</button>
-              </div>
+              </div>}
             </div>
           }
         </div>
@@ -486,6 +489,7 @@ export class PeoplePage implements OnInit {
 })
 export class WorkAssignmentsComponent implements OnInit {
   @Input({ required: true }) workId!: string;
+  @Input() primaryForemanName = '';
   private readonly api = inject(Api);
   private readonly cdr = inject(ChangeDetectorRef);
   readonly roles: PersonalRole[] = ['SITE_MANAGER', 'FOREMAN'];

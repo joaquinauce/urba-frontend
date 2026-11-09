@@ -21,6 +21,7 @@ export const routes: Routes = [
   {path:'',pathMatch:'full',redirectTo:'login'},
   {path:'login',component:LoginPage},
   {path:'capataz',component:LoginPage,data:{foremanModal:true}},
+  {path:'mi-obra/gastos',loadComponent:()=>import('./expense-pages').then(module=>module.MemberExpensesPage),canActivate:[legacyForemanGuard]},
   {path:'mi-obra',component:PublicPage,canActivate:[legacyForemanGuard]},
   {path:'dashboard',component:DashboardPage,canActivate:[adminGuard]},
   {path:'personas',component:PeoplePage,canActivate:[adminGuard]},

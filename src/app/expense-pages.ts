@@ -1,7 +1,7 @@
 import { ChangeDetectorRef, Component, HostListener, OnDestroy, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { Api, type Foreman, type PersonSummary, type Work, localDate, message } from './api';
+import { Api, type Foreman, type PersonSummary, type PublicToday, type Work, localDate, message } from './api';
 import { formatArDate } from './date';
 
 type ExpenseType = { id: string; name: string; isActive: boolean };
@@ -16,7 +16,7 @@ const when = (value: string) => new Intl.DateTimeFormat('es-AR', { dateStyle: 's
   imports: [FormsModule, RouterLink],
   template: `
     <main class="page member-page expense-mobile">
-      <a class="back" [routerLink]="['/mis-obras', workId]">← Volver a la obra</a>
+      <a class="back" [routerLink]="backPath()">← Volver a la obra</a>
       <div class="page-heading"><div><span class="eyebrow dark">CAPATAZ</span><h1>Rendición de gastos</h1><p>{{ workName }}</p></div></div>
       @if (error) { <div class="alert error" role="alert">{{ error }}</div> }
       @if (notice) { <div class="alert success" role="status">{{ notice }}</div> }
@@ -40,13 +40,21 @@ const when = (value: string) => new Intl.DateTimeFormat('es-AR', { dateStyle: 's
 })
 export class MemberExpensesPage implements OnInit {
   private api = inject(Api); private route = inject(ActivatedRoute); private cdr = inject(ChangeDetectorRef);
+  legacyMode = false;
   workId = ''; workName = ''; types: ExpenseType[] = []; recent: Expense[] = [];
   amount: number | null = null; typeId = ''; photo: File | null = null; photoInput: HTMLInputElement | null = null; requestId = crypto.randomUUID();
   busy = false; loading = true; error = ''; notice = ''; money = ars; at = when;
-  ngOnInit() { this.workId = this.route.snapshot.paramMap.get('id') ?? ''; void this.load(); }
+  ngOnInit() { this.workId = this.route.snapshot.paramMap.get('id') ?? ''; this.legacyMode = !this.workId; void this.load(); }
+  backPath() { return this.legacyMode ? '/mi-obra' : `/mis-obras/${this.workId}`; }
+  expensePath() { return this.legacyMode ? 'public/session/expenses' : `member/expenses/works/${this.workId}`; }
+  mode(): 'foreman' | 'person' { return this.legacyMode ? 'foreman' : 'person'; }
   async load() {
     try {
-      const [work, types, recent] = await Promise.all([
+      const [work, types, recent] = this.legacyMode ? await Promise.all([
+        this.api.get<PublicToday>('public/session/today', this.mode()),
+        this.api.get<ExpenseType[]>(`${this.expensePath()}/types`, this.mode()),
+        this.api.get<Expense[]>(this.expensePath(), this.mode()),
+      ]) : await Promise.all([
         this.api.get<{ work: { name: string } }>(`member/works/${this.workId}`, 'person'),
         this.api.get<ExpenseType[]>('member/expenses/types', 'person'),
         this.api.get<Expense[]>(`member/expenses/works/${this.workId}`, 'person'),
@@ -65,10 +73,10 @@ export class MemberExpensesPage implements OnInit {
     if (!this.photo || this.photo.size > 12 * 1024 * 1024) { this.error = 'Adjuntá una fotografía de hasta 12 MB.'; return; }
     this.busy = true;
     try {
-      await this.api.uploadExpense(`member/expenses/works/${this.workId}`, { amount: String(this.amount), typeId: this.typeId, requestId: this.requestId }, this.photo);
+      await this.api.uploadExpense(this.expensePath(), { amount: String(this.amount), typeId: this.typeId, requestId: this.requestId }, this.photo, this.mode());
       this.notice = 'Gasto registrado. Ya aparece en tus rendiciones recientes.';
       this.amount = null; this.typeId = ''; this.photo = null; if (this.photoInput) this.photoInput.value = ''; this.requestId = crypto.randomUUID();
-      try { this.recent = await this.api.get<Expense[]>(`member/expenses/works/${this.workId}`, 'person'); }
+      try { this.recent = await this.api.get<Expense[]>(this.expensePath(), this.mode()); }
       catch { this.notice = 'Gasto registrado. Actualizá la pantalla para ver la lista reciente.'; }
     } catch (error) { this.error = message(error); }
     finally { this.busy = false; this.cdr.detectChanges(); }

@@ -1,11 +1,30 @@
 import { TestBed } from '@angular/core/testing';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { describe, expect, it, vi } from 'vitest';
 import { Api, type PersonSummary } from './api';
-import { AdminExpensesPage } from './expense-pages';
+import { AdminExpensesPage, MemberExpensesPage } from './expense-pages';
 
 const person = (id: string, fullName: string, roles: PersonSummary['roles']): PersonSummary => ({
   id, fullName, roles, isActive: true, hasCode: true, failedAttempts: 0,
   lockedUntil: null, lastAccessAt: null, activeAssignments: 1,
+});
+
+describe('rendiciones del capataz', () => {
+  it('abre la carga desde la sesión con alias y PIN', async () => {
+    const get = vi.fn(async (path: string) => path.endsWith('/today')
+      ? { work: { id: 'work-1', name: 'Obra QR', foremanName: 'Juan Capataz' }, goals: [], date: '2026-11-09', report: null, editable: true, closeTime: '19:00' }
+      : []);
+    TestBed.configureTestingModule({ providers: [provideRouter([]),
+      { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({}) } } },
+      { provide: Api, useValue: { get } },
+    ] });
+    const fixture = TestBed.createComponent(MemberExpensesPage);
+    fixture.detectChanges();
+    await fixture.componentInstance.load();
+    expect(fixture.componentInstance.workName).toBe('Obra QR');
+    expect(get).toHaveBeenCalledWith('public/session/expenses/types', 'foreman');
+    expect(fixture.componentInstance.backPath()).toBe('/mi-obra');
+  });
 });
 
 describe('rendiciones administrativas', () => {

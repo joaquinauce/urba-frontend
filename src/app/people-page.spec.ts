@@ -89,6 +89,19 @@ describe('asignaciones múltiples', () => {
       {},
     );
   });
+
+  it('muestra el capataz responsable de la obra aunque no tenga asignación personal', async () => {
+    TestBed.overrideProvider(Api, { useValue: { get: vi.fn(async () => []) } });
+    const fixture = TestBed.createComponent(WorkAssignmentsComponent);
+    fixture.componentInstance.workId = 'work-1';
+    fixture.componentInstance.primaryForemanName = 'Juan Capataz';
+    await fixture.componentInstance.load();
+    fixture.detectChanges();
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Juan Capataz');
+    expect(fixture.nativeElement.querySelectorAll('.assignment-role-head')[1].textContent).toContain('1 activo');
+    expect(fixture.nativeElement.querySelectorAll('.assignment-empty').length).toBe(1);
+  });
 });
 
 describe('alta con credenciales', () => {

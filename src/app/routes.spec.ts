@@ -26,6 +26,7 @@ describe('rutas autorizadas por perfil', () => {
     expect(byPath.get('supervision/:id')?.canActivate).toHaveLength(2);
     expect(byPath.get('mis-obras')?.canActivate).toHaveLength(2);
     expect(byPath.get('mis-obras/:id')?.canActivate).toHaveLength(2);
+    expect(byPath.get('mi-obra/gastos')?.canActivate).toHaveLength(1);
   });
 
   it('conserva las rutas del acceso legado', () => {
