@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Api, type Foreman, type PersonSummary, type PublicToday, type Work, localDate, message } from './api';
 import { formatArDate } from './date';
+import { DateField } from './date-field';
 import { prepareReceiptImage, RECEIPT_UPLOAD_LIMIT } from './receipt-image';
 
 type ExpenseType = { id: string; name: string; isActive: boolean };
@@ -107,16 +108,16 @@ export class MemberExpensesPage implements OnInit {
 
 @Component({
   selector: 'app-admin-expenses',
-  imports: [FormsModule],
+  imports: [FormsModule, DateField, RouterLink],
   template: `
     <main class="page expenses-admin">
-      <div class="page-heading"><div><span class="eyebrow dark">ADMINISTRACIÓN</span><h1>Rendiciones</h1><p>Gastos por obra y día, con comprobantes.</p></div></div>
+      <a class="back" routerLink="/informes">← Informes</a>
+      <div class="page-heading"><div><span class="eyebrow dark">INFORMES</span><h1>Rendiciones</h1><p>Gastos por obra y día, con comprobantes.</p></div></div>
       @if (error) { <div class="alert error" role="alert">{{ error }}</div> }
-      @if (notice) { <div class="alert success" role="status">{{ notice }}</div> }
       <section class="panel"><div class="section-title"><h2>Consultar gastos</h2></div>
         <form class="expense-filters" (ngSubmit)="loadExpenses()">
-          <label>Desde<input type="date" name="from" [(ngModel)]="from" required></label>
-          <label>Hasta<input type="date" name="to" [(ngModel)]="to" required></label>
+          <label>Desde<app-date-field name="from" [(ngModel)]="from" [required]="true"></app-date-field></label>
+          <label>Hasta<app-date-field name="to" [(ngModel)]="to" [required]="true"></app-date-field></label>
           <label>Obra<select name="workId" [(ngModel)]="workId"><option value="">Todas</option>@for (work of works; track work.id) {<option [value]="work.id">{{ work.name }}</option>}</select></label>
           <label>Capataz<select name="foremanSelection" [(ngModel)]="foremanSelection"><option value="">Todos</option>@for (foreman of foremen; track foreman.value) {<option [value]="foreman.value">{{ foreman.name }}</option>}</select></label>
           <label>Tipo<select name="typeId" [(ngModel)]="typeId"><option value="">Todos</option>@for (type of types; track type.id) {<option [value]="type.id">{{ type.name }}</option>}</select></label>
@@ -130,12 +131,6 @@ export class MemberExpensesPage implements OnInit {
           @for (item of group.items; track item.id) { <div class="expense-row"><div><strong>{{ item.typeName }}</strong><small>{{ item.personName }} · {{ at(item.occurredAt) }}</small></div><strong>{{ money(item.amountArs) }}</strong><button type="button" class="ghost small" (click)="openReceipt(item.id)">Ver comprobante</button></div> }
         </section>
       }
-      <section class="panel expense-types"><div class="section-title"><h2>Tipos de gastos</h2></div>
-        <form class="expense-type-form" (ngSubmit)="saveType()"><label>Nuevo tipo<input name="typeName" [(ngModel)]="typeName" maxlength="100" required></label><button class="primary" [disabled]="typeBusy">Crear tipo</button></form>
-        @for (type of types; track type.id) { <div class="expense-row"><div><strong>{{ type.name }}</strong><span class="expense-status" [class.enabled]="type.isActive" [class.disabled]="!type.isActive">{{ type.isActive ? 'Habilitado' : 'Deshabilitado' }}</span></div><button type="button" class="ghost small" (click)="editType(type)">Editar</button><button type="button" class="ghost small" (click)="toggleType(type)">{{ type.isActive ? 'Deshabilitar' : 'Habilitar' }}</button></div> }
-      </section>
-      @if (editingType) {<div class="app-modal-backdrop" (click)="closeTypeModal()"><section class="app-modal expense-type-modal" role="dialog" aria-modal="true" aria-labelledby="edit-expense-type-title" (click)="$event.stopPropagation()"><div class="app-modal-head"><div><span class="eyebrow dark">TIPOS DE GASTOS</span><h2 id="edit-expense-type-title">Editar tipo</h2></div><button type="button" class="app-modal-close" aria-label="Cerrar" (click)="closeTypeModal()">×</button></div><form (ngSubmit)="saveEdit()"><label>Nombre<input name="editTypeName" [(ngModel)]="editTypeName" maxlength="100" required autofocus></label>@if (modalError) {<div class="alert error" role="alert">{{ modalError }}</div>}<div class="actions modal-actions"><button class="ghost" type="button" (click)="closeTypeModal()">Cancelar</button><button class="primary" [disabled]="typeBusy">{{ typeBusy ? 'Guardando…' : 'Guardar cambios' }}</button></div></form></section></div>}
-      @if (confirmType) {<div class="app-modal-backdrop" (click)="closeTypeModal()"><section class="app-modal status-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="disable-expense-type-title" (click)="$event.stopPropagation()"><div class="app-modal-head"><div><span class="eyebrow dark">TIPOS DE GASTOS</span><h2 id="disable-expense-type-title">Deshabilitar tipo</h2></div><button type="button" class="app-modal-close" aria-label="Cerrar" (click)="closeTypeModal()">×</button></div><div class="status-confirm-icon" aria-hidden="true">!</div><p class="modal-intro">¿Deshabilitar <strong>{{ confirmType.name }}</strong>? Dejará de aparecer en nuevas rendiciones.</p>@if (modalError) {<div class="alert error" role="alert">{{ modalError }}</div>}<div class="actions modal-actions"><button class="ghost" type="button" (click)="closeTypeModal()">Cancelar</button><button class="primary" type="button" [disabled]="typeBusy" (click)="confirmDisable()">{{ typeBusy ? 'Guardando…' : 'Deshabilitar' }}</button></div></section></div>}
       @if (receiptUrl) {<div class="expense-lightbox" role="dialog" aria-modal="true" aria-label="Comprobante" (click)="closeReceipt()"><button type="button" class="ghost expense-lightbox-close" aria-label="Cerrar comprobante" (click)="closeReceipt(); $event.stopPropagation()">×</button><img [src]="receiptUrl" alt="Fotografía del comprobante" (click)="$event.stopPropagation()"></div>}
     </main>
   `,
@@ -144,11 +139,11 @@ export class AdminExpensesPage implements OnInit, OnDestroy {
   private api = inject(Api); private cdr = inject(ChangeDetectorRef);
   from = `${localDate().slice(0, 7)}-01`; to = localDate(); workId = ''; foremanSelection = ''; typeId = '';
   works: Work[] = []; foremen: ForemanOption[] = []; types: ExpenseType[] = []; expenses: Expense[] = []; groups: ExpenseGroup[] = [];
-  total = 0; loading = false; typeBusy = false; typeName = ''; editingType: ExpenseType | null = null; editTypeName = ''; confirmType: ExpenseType | null = null; modalError = ''; receiptUrl = ''; error = ''; notice = '';
+  total = 0; loading = false; receiptUrl = ''; error = '';
   money = ars; at = when; arDate = formatArDate;
   ngOnInit() { void this.load(); }
   ngOnDestroy() { if (this.receiptUrl) URL.revokeObjectURL(this.receiptUrl); }
-  @HostListener('document:keydown.escape') onEscape() { if (this.editingType || this.confirmType) this.closeTypeModal(); else if (this.receiptUrl) this.closeReceipt(); }
+  @HostListener('document:keydown.escape') onEscape() { if (this.receiptUrl) this.closeReceipt(); }
   async load() {
     try { const [works, people, legacyForemen, types] = await Promise.all([
       this.api.get<Work[]>('admin/works'), this.api.get<PersonSummary[]>('admin/people'), this.api.get<Foreman[]>('admin/foremen'), this.api.get<ExpenseType[]>('admin/expenses/types')
@@ -178,42 +173,6 @@ export class AdminExpensesPage implements OnInit, OnDestroy {
       this.groups = [...groups.values()];
     } catch (error) { this.error = message(error); }
     finally { this.loading = false; this.cdr.detectChanges(); }
-  }
-  editType(type: ExpenseType) { this.editingType = type; this.editTypeName = type.name; this.modalError = ''; this.cdr.detectChanges(); }
-  closeTypeModal() { if (this.typeBusy) return; this.editingType = null; this.confirmType = null; this.editTypeName = ''; this.modalError = ''; this.cdr.detectChanges(); }
-  async saveType() {
-    this.error = ''; this.notice = ''; this.typeBusy = true;
-    try {
-      await this.api.post('admin/expenses/types', { name: this.typeName });
-      this.types = await this.api.get<ExpenseType[]>('admin/expenses/types'); this.typeName = ''; this.notice = 'Tipo creado.';
-    } catch (error) { this.error = message(error); }
-    finally { this.typeBusy = false; this.cdr.detectChanges(); }
-  }
-  async saveEdit() {
-    if (!this.editingType || this.typeBusy) return;
-    this.modalError = ''; this.notice = ''; this.typeBusy = true;
-    try {
-      await this.api.patch(`admin/expenses/types/${this.editingType.id}`, { name: this.editTypeName.trim() });
-      this.types = await this.api.get<ExpenseType[]>('admin/expenses/types'); this.notice = 'Tipo actualizado.';
-      this.editingType = null; this.editTypeName = '';
-    } catch (error) { this.modalError = message(error); }
-    finally { this.typeBusy = false; this.cdr.detectChanges(); }
-  }
-  async toggleType(type: ExpenseType) {
-    if (type.isActive) { this.confirmType = type; this.modalError = ''; this.cdr.detectChanges(); return; }
-    this.error = ''; this.notice = '';
-    try { await this.api.patch(`admin/expenses/types/${type.id}/active`, { isActive: true }); this.types = await this.api.get<ExpenseType[]>('admin/expenses/types'); this.notice = 'Tipo habilitado.'; }
-    catch (error) { this.error = message(error); }
-    finally { this.cdr.detectChanges(); }
-  }
-  async confirmDisable() {
-    if (!this.confirmType || this.typeBusy) return;
-    this.modalError = ''; this.notice = ''; this.typeBusy = true;
-    try {
-      await this.api.patch(`admin/expenses/types/${this.confirmType.id}/active`, { isActive: false });
-      this.types = await this.api.get<ExpenseType[]>('admin/expenses/types'); this.notice = 'Tipo deshabilitado.'; this.confirmType = null;
-    } catch (error) { this.modalError = message(error); }
-    finally { this.typeBusy = false; this.cdr.detectChanges(); }
   }
   async openReceipt(id: string) {
     this.error = '';

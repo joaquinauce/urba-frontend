@@ -1,7 +1,7 @@
 import { inject } from '@angular/core';
 import { Router, Routes } from '@angular/router';
 import { AuthStore, ForemanStore } from './api';
-import { LoginPage, DashboardPage, ForemenPage, WorksPage, WorkPage, PublicPage, InstallPage } from './pages';
+import { LoginPage, DashboardPage, ForemenPage, WorkPage, PublicPage, InstallPage } from './pages';
 import { PeoplePage } from './people-page';
 import { MemberWorkPage, MemberWorksPage } from './member-pages';
 import { PersonalSessionStore, personalLanding } from './session';
@@ -26,8 +26,13 @@ export const routes: Routes = [
   {path:'dashboard',component:DashboardPage,canActivate:[adminGuard]},
   {path:'personas',component:PeoplePage,canActivate:[adminGuard]},
   {path:'capataces',component:ForemenPage,canActivate:[adminGuard]},
-  {path:'obras',component:WorksPage,canActivate:[adminGuard]},
-  {path:'rendiciones',loadComponent:()=>import('./expense-pages').then(module=>module.AdminExpensesPage),canActivate:[adminGuard]},
+  {path:'obras',loadComponent:()=>import('./works-page').then(module=>module.WorksPage),canActivate:[adminGuard]},
+  {path:'informes',loadComponent:()=>import('./reports-pages').then(module=>module.ReportsHubPage),canActivate:[adminGuard]},
+  {path:'informes/objetivos-diarios',loadComponent:()=>import('./reports-pages').then(module=>module.DailyGoalsReportPage),canActivate:[adminGuard]},
+  {path:'informes/rendiciones',loadComponent:()=>import('./expense-pages').then(module=>module.AdminExpensesPage),canActivate:[adminGuard]},
+  {path:'rendiciones',pathMatch:'full',redirectTo:'informes/rendiciones'},
+  {path:'configuracion',loadComponent:()=>import('./expense-type-pages').then(module=>module.SettingsHubPage),canActivate:[adminGuard]},
+  {path:'configuracion/tipos-de-gasto',loadComponent:()=>import('./expense-type-pages').then(module=>module.ExpenseTypesSettingsPage),canActivate:[adminGuard]},
   {path:'obras/:id',component:WorkPage,canActivate:[adminGuard]},
   {path:'supervision',component:MemberWorksPage,canActivate:[personGuard,siteManagerGuard]},
   {path:'supervision/:id',component:MemberWorkPage,canActivate:[personGuard,siteManagerGuard]},

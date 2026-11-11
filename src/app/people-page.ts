@@ -5,11 +5,14 @@ import {
   HostListener,
   Input,
   OnInit,
+  Output,
+  EventEmitter,
   inject,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import {
   Api,
+  Foreman,
   PersonSummary,
   Work,
   WorkAssignment,
@@ -17,6 +20,7 @@ import {
 } from './api';
 import { formatArDate } from './date';
 import { PersonalRole, roleLabel } from './session';
+import { SearchSelect, type SearchOption } from './search-select';
 
 type PersonForm = {
   fullName: string;
@@ -84,8 +88,8 @@ type PersonForm = {
       @if (!loading && people.length && !filteredPeople().length) { <div class="empty compact">No encontramos personas con esa búsqueda.</div> }
       @if (modal) {
         <div class="app-modal-backdrop" (click)="closeModal()">
-          <section class="app-modal" role="dialog" aria-modal="true" [attr.aria-label]="modal === 'password' ? 'Cambiar clave' : modal === 'status' ? selectedPerson?.isActive ? 'Inhabilitar persona' : 'Habilitar persona' : editing ? 'Editar persona' : 'Nueva persona'" (click)="$event.stopPropagation()">
-            <div class="app-modal-head"><div><span class="eyebrow dark">EQUIPO</span><h2>{{ modal === 'password' ? 'Cambiar clave' : modal === 'status' ? selectedPerson?.isActive ? 'Inhabilitar persona' : 'Habilitar persona' : editing ? 'Editar persona' : 'Nueva persona' }}</h2></div><button class="app-modal-close" type="button" aria-label="Cerrar" (click)="closeModal()">×</button></div>
+          <section class="app-modal" role="dialog" aria-modal="true" [attr.aria-label]="modal === 'password' ? 'Cambiar clave' : modal === 'rotate' ? 'Rotar código' : modal === 'status' ? selectedPerson?.isActive ? 'Inhabilitar persona' : 'Habilitar persona' : editing ? 'Editar persona' : 'Nueva persona'" (click)="$event.stopPropagation()">
+            <div class="app-modal-head"><div><span class="eyebrow dark">EQUIPO</span><h2>{{ modal === 'password' ? 'Cambiar clave' : modal === 'rotate' ? 'Rotar código' : modal === 'status' ? selectedPerson?.isActive ? 'Inhabilitar persona' : 'Habilitar persona' : editing ? 'Editar persona' : 'Nueva persona' }}</h2></div><button class="app-modal-close" type="button" aria-label="Cerrar" (click)="closeModal()">×</button></div>
             @if (modal === 'password') {
               <p class="modal-intro">{{ selectedPerson?.fullName }}</p>
               <form (ngSubmit)="savePassword()" novalidate>
@@ -94,9 +98,13 @@ type PersonForm = {
                 @if (error) { <div class="alert error">{{ error }}</div> }
                 <div class="actions modal-actions"><button class="ghost" type="button" (click)="closeModal()">Cancelar</button><button class="primary" [disabled]="busy">{{ busy ? 'Guardando…' : 'Guardar clave' }}</button></div>
               </form>
+            } @else if (modal === 'rotate') {
+              <div class="status-confirm-message"><div class="status-confirm-icon" aria-hidden="true">!</div><p class="modal-intro">¿Rotar el código de <strong>{{ selectedPerson?.fullName }}</strong>? El código anterior y las sesiones abiertas dejarán de funcionar.</p></div>
+              @if (error) { <div class="alert error" role="alert">{{ error }}</div> }
+              <div class="actions modal-actions"><button class="ghost" type="button" (click)="closeModal()">Cancelar</button><button class="primary" type="button" [disabled]="busy" (click)="confirmRotate()">{{ busy ? 'Rotando…' : 'Rotar código' }}</button></div>
             } @else if (modal === 'status') {
-              <div class="status-confirm-icon" [class.enable]="!selectedPerson?.isActive" aria-hidden="true">{{ selectedPerson?.isActive ? '!' : '✓' }}</div>
-              <p class="modal-intro"><strong>{{ selectedPerson?.fullName }}</strong> {{ selectedPerson?.isActive ? 'perderá acceso inmediatamente a la aplicación.' : 'podrá volver a ingresar a la aplicación.' }}</p>
+              <div class="status-confirm-message"><div class="status-confirm-icon" [class.enable]="!selectedPerson?.isActive" aria-hidden="true">{{ selectedPerson?.isActive ? '!' : '✓' }}</div>
+              <p class="modal-intro"><strong>{{ selectedPerson?.fullName }}</strong> {{ selectedPerson?.isActive ? 'perderá acceso inmediatamente a la aplicación.' : 'podrá volver a ingresar a la aplicación.' }}</p></div>
               @if (error) { <div class="alert error">{{ error }}</div> }
               <div class="actions modal-actions"><button class="ghost" type="button" (click)="closeModal()">Cancelar</button><button class="primary" type="button" [disabled]="busy" (click)="confirmStatus()">{{ busy ? 'Guardando…' : selectedPerson?.isActive ? 'Inhabilitar' : 'Habilitar' }}</button></div>
             } @else {
@@ -126,7 +134,7 @@ export class PeoplePage implements OnInit {
   workNames: Record<string, string[]> = {};
   loading = true;
   busy = false;
-  modal: '' | 'person' | 'password' | 'status' = '';
+  modal: '' | 'person' | 'password' | 'status' | 'rotate' = '';
   selectedPerson: PersonSummary | null = null;
   newPassword = '';
   confirmNewPassword = '';
@@ -184,6 +192,7 @@ export class PeoplePage implements OnInit {
   }
 
   closeModal() {
+    if (this.busy) return;
     this.modal = '';
     this.selectedPerson = null;
     this.newPassword = '';
@@ -388,11 +397,24 @@ export class PeoplePage implements OnInit {
   }
 
   async rotate(person: PersonSummary) {
-    if (
-      person.hasCode &&
-      !confirm('El código anterior y las sesiones abiertas dejarán de funcionar. ¿Continuar?')
-    )
+    if (person.hasCode) {
+      this.selectedPerson = person;
+      this.modal = 'rotate';
+      this.error = '';
+      this.cdr.detectChanges();
       return;
+    }
+    await this.performRotate(person);
+  }
+
+  async confirmRotate() {
+    const person = this.selectedPerson;
+    if (!person || this.busy) return;
+    await this.performRotate(person);
+  }
+
+  private async performRotate(person: PersonSummary) {
+    this.busy = true;
     this.error = '';
     try {
       const result = await this.api.post<{ code: string }>(
@@ -402,10 +424,13 @@ export class PeoplePage implements OnInit {
       this.revealedName = person.fullName;
       this.revealedCode = result.code;
       await this.load();
+      this.busy = false;
+      if (this.modal === 'rotate') this.closeModal();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
       this.error = message(error);
     } finally {
+      this.busy = false;
       this.cdr.detectChanges();
     }
   }
@@ -460,12 +485,12 @@ export class PeoplePage implements OnInit {
 
 @Component({
   selector: 'app-work-assignments',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SearchSelect],
   template: `
     <section class="panel assignment-panel">
       <div class="section-title">
-        <div><h2>Responsables</h2><p>Capataz responsable y personas con acceso a esta obra.</p></div>
-        <button class="ghost small" type="button" (click)="showHistory = !showHistory">{{ showHistory ? 'Ocultar historial' : 'Ver historial' }}</button>
+        <div><h2>Responsables</h2></div>
+        <button class="ghost small" type="button" (click)="openHistory()">Ver historial</button>
       </div>
       @if (error) { <div class="alert error">{{ error }}</div> }
       @if (notice) { <div class="alert success">{{ notice }}</div> }
@@ -474,17 +499,18 @@ export class PeoplePage implements OnInit {
         <div class="assignment-groups">
           @for (role of roles; track role) {
             <div>
-              <div class="assignment-role-head"><h3>{{ label(role) }}</h3><span>{{ activeFor(role).length + (role === 'FOREMAN' && primaryForemanName ? 1 : 0) }} activo(s)</span></div>
+              <div class="assignment-role-head"><h3>{{ roleTitle(role) }}</h3></div>
               @if (role === 'FOREMAN' && primaryForemanName) {
-                <div class="assignment-row"><div><strong>{{ primaryForemanName }}</strong><small>Capataz responsable de la obra</small></div></div>
+                <div class="assignment-row"><div><strong>{{ primaryForemanName }}</strong></div><button class="ghost small" type="button" (click)="openChange()">Cambiar</button></div>
               }
-              @for (assignment of activeFor(role); track assignment.id) {
+              @for (assignment of visibleFor(role); track assignment.id) {
                 <div class="assignment-row">
-                  <div><strong>{{ assignment.personName }}</strong><small>Desde {{ arDateTime(assignment.assignedAt) }}</small></div>
-                  <button class="ghost small" type="button" (click)="unassign(assignment)">Desasignar</button>
+                  <div><strong>{{ assignment.personName }}</strong></div>
+                  @if (assignment.isPrimary && role === 'FOREMAN') { <button class="ghost small" type="button" (click)="openChange()">Cambiar</button> }
+                  @else { <button class="ghost small" type="button" [disabled]="busy || (role === 'SITE_MANAGER' && activeFor(role).length <= 1)" [title]="role === 'SITE_MANAGER' && activeFor(role).length <= 1 ? 'La obra debe conservar un jefe de obra' : ''" (click)="requestUnassign(assignment)">Desasignar</button> }
                 </div>
               }
-              @if (!activeFor(role).length && !(role === 'FOREMAN' && primaryForemanName)) { <div class="assignment-empty">Sin responsables asignados para este rol.</div> }
+              @if (!visibleFor(role).length && !(role === 'FOREMAN' && primaryForemanName)) { <div class="assignment-empty">Sin responsables asignados para este rol.</div> }
               @if (eligible(role).length) {<div class="inline-assignment">
                 <select [name]="'person-' + role" [(ngModel)]="selected[role]" [disabled]="!eligible(role).length" [attr.aria-label]="'Seleccionar ' + label(role)">
                   <option value="">{{ eligible(role).length ? 'Seleccionar persona' : 'No hay personas disponibles' }}</option>
@@ -495,36 +521,36 @@ export class PeoplePage implements OnInit {
             </div>
           }
         </div>
-        @if (showHistory) {
-          <div class="assignment-history">
-            <h3>Historial</h3>
-            @for (assignment of history(); track assignment.id) {
-              <div class="assignment-row historical">
-                <div><strong>{{ assignment.personName }}</strong><small>{{ label(assignment.roleCode) }} · {{ arDateTime(assignment.assignedAt) }} → {{ assignment.unassignedAt ? arDateTime(assignment.unassignedAt) : 'Actual' }}</small></div>
-              </div>
-            }
-            @if (!history().length) { <p class="hint">Todavía no hay desasignaciones registradas.</p> }
-          </div>
-        }
       }
     </section>
+    @if (historyOpen) { <div class="app-modal-backdrop"><section class="app-modal assignment-history-modal" role="dialog" aria-modal="true" aria-labelledby="assignment-history-title"><div class="app-modal-head"><div><span class="eyebrow dark">RESPONSABLES</span><h2 id="assignment-history-title">Historial de asignaciones</h2></div><button class="app-modal-close" type="button" aria-label="Cerrar" (click)="closeHistory()">×</button></div><div class="assignment-history-groups">@for (role of roles; track role) {<section class="assignment-history-group"><h3>{{ role === 'SITE_MANAGER' ? 'Jefes de obra' : 'Capataces' }}</h3>@for (assignment of historyFor(role); track assignment.id) {<div class="assignment-history-row"><div class="assignment-history-person"><strong>{{ assignment.personName }}</strong>@if (assignment.active) {<span class="assignment-history-current">Actual</span>}</div><div class="assignment-history-dates"><span>Desde <strong>{{ arDateTime(assignment.assignedAt) }}</strong></span><span>Hasta <strong>{{ assignment.unassignedAt ? arDateTime(assignment.unassignedAt) : 'En curso' }}</strong></span></div></div>}@if (!historyFor(role).length) {<p class="assignment-history-empty">Sin asignaciones registradas.</p>}</section>}</div><div class="actions modal-actions"><button class="ghost" type="button" (click)="closeHistory()">Cerrar</button></div></section></div> }
+    @if (changeOpen) { <div class="app-modal-backdrop"><section class="app-modal" role="dialog" aria-modal="true" aria-labelledby="change-foreman-title"><div class="app-modal-head"><div><span class="eyebrow dark">RESPONSABLES</span><h2 id="change-foreman-title">Cambiar capataz</h2></div><button class="app-modal-close" type="button" aria-label="Cerrar" (click)="closeChange()">×</button></div><form (ngSubmit)="saveChange()"><p class="modal-intro">Capataz actual: <strong>{{ primaryForemanName }}</strong></p><label>Nuevo capataz<app-search-select name="newForeman" [(ngModel)]="selectedForemanId" [options]="changeOptions" label="Nuevo capataz" placeholder="Buscar capataz"></app-search-select></label>@if (changeError) { <div class="alert error" role="alert">{{ changeError }}</div> }<div class="actions modal-actions"><button class="ghost" type="button" (click)="closeChange()">Cancelar</button><button class="primary" [disabled]="busy || !selectedForemanId">{{ busy ? 'Guardando…' : 'Guardar cambio' }}</button></div></form></section></div> }
+    @if (pendingUnassign) { <div class="app-modal-backdrop" (click)="closeUnassign()"><section class="app-modal status-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="unassign-title" (click)="$event.stopPropagation()"><div class="app-modal-head"><div><span class="eyebrow dark">RESPONSABLES</span><h2 id="unassign-title">Desasignar responsable</h2></div><button class="app-modal-close" type="button" aria-label="Cerrar" (click)="closeUnassign()">×</button></div><div class="status-confirm-message"><div class="status-confirm-icon" aria-hidden="true">!</div><p class="modal-intro">¿Desasignar a <strong>{{ pendingUnassign.personName }}</strong> de esta obra? Su historial se conservará.</p></div>@if (unassignError) { <div class="alert error" role="alert">{{ unassignError }}</div> }<div class="actions modal-actions"><button class="ghost" type="button" (click)="closeUnassign()">Cancelar</button><button class="primary" type="button" [disabled]="busy" (click)="confirmUnassign()">{{ busy ? 'Desasignando…' : 'Desasignar' }}</button></div></section></div> }
   `,
 })
 export class WorkAssignmentsComponent implements OnInit {
   @Input({ required: true }) workId!: string;
   @Input() primaryForemanName = '';
+  @Input() primaryForemanId = '';
+  @Output() foremanChanged = new EventEmitter<void>();
   private readonly api = inject(Api);
   private readonly cdr = inject(ChangeDetectorRef);
   readonly roles: PersonalRole[] = ['SITE_MANAGER', 'FOREMAN'];
   readonly label = roleLabel;
   people: PersonSummary[] = [];
+  foremen: Foreman[] = [];
   assignments: WorkAssignment[] = [];
   selected: Record<PersonalRole, string> = { SITE_MANAGER: '', FOREMAN: '' };
   loading = true;
   busy = false;
-  showHistory = false;
+  historyOpen = false;
   error = '';
   notice = '';
+  changeOpen = false;
+  selectedForemanId = '';
+  changeError = '';
+  pendingUnassign: WorkAssignment | null = null;
+  unassignError = '';
 
   ngOnInit() {
     void this.load();
@@ -532,9 +558,10 @@ export class WorkAssignmentsComponent implements OnInit {
 
   async load() {
     try {
-      [this.people, this.assignments] = await Promise.all([
+      [this.people, this.assignments, this.foremen] = await Promise.all([
         this.api.get<PersonSummary[]>('admin/people'),
         this.api.get<WorkAssignment[]>(`admin/works/${this.workId}/assignments`),
+        this.api.get<Foreman[]>('admin/foremen'),
       ]);
     } catch (error) {
       this.error = message(error);
@@ -548,6 +575,52 @@ export class WorkAssignmentsComponent implements OnInit {
     return this.assignments.filter((item) => item.active && item.roleCode === role);
   }
 
+  roleTitle(role: PersonalRole) {
+    if (role === 'SITE_MANAGER') return this.activeFor(role).length === 1 ? 'Jefe de Obra' : 'Jefes de obra';
+    return this.visibleFor(role).length + (this.primaryForemanName ? 1 : 0) === 1 ? 'Capataz' : 'Capataces';
+  }
+
+  get changeOptions(): SearchOption[] {
+    return this.foremen.filter(person => person.isActive && person.id !== this.primaryForemanId)
+      .map(person => ({ value: person.id, label: `${person.firstName} ${person.lastName}` }));
+  }
+
+  openChange() {
+    this.selectedForemanId = '';
+    this.changeError = '';
+    this.changeOpen = true;
+    this.cdr.detectChanges();
+  }
+
+  closeChange() {
+    if (this.busy) return;
+    this.changeOpen = false;
+    this.changeError = '';
+    this.cdr.detectChanges();
+  }
+
+  async saveChange() {
+    if (!this.selectedForemanId || this.busy) return;
+    this.busy = true;
+    this.changeError = '';
+    try {
+      await this.api.patch(`admin/works/${this.workId}/foreman`, { foremanId: this.selectedForemanId });
+      this.changeOpen = false;
+      this.notice = 'Capataz cambiado.';
+      this.foremanChanged.emit();
+      await this.load();
+    } catch (error) {
+      this.changeError = message(error);
+    } finally {
+      this.busy = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  visibleFor(role: PersonalRole) {
+    return this.activeFor(role).filter(item => role !== 'FOREMAN' || !this.primaryForemanName || !item.isPrimary);
+  }
+
   eligible(role: PersonalRole) {
     const assigned = new Set(this.activeFor(role).map((item) => item.personId));
     return this.people.filter(
@@ -555,8 +628,13 @@ export class WorkAssignmentsComponent implements OnInit {
     );
   }
 
-  history() {
-    return this.assignments.filter((item) => !item.active);
+  openHistory() { this.historyOpen = true; this.cdr.detectChanges(); }
+
+  closeHistory() { this.historyOpen = false; this.cdr.detectChanges(); }
+
+  historyFor(role: PersonalRole) {
+    return this.assignments.filter(item => item.roleCode === role)
+      .sort((a, b) => new Date(b.assignedAt).getTime() - new Date(a.assignedAt).getTime());
   }
 
   async assign(role: PersonalRole) {
@@ -580,19 +658,34 @@ export class WorkAssignmentsComponent implements OnInit {
     }
   }
 
-  async unassign(assignment: WorkAssignment) {
-    if (!confirm(`¿Desasignar a ${assignment.personName}? El historial se conservará.`)) return;
+  requestUnassign(assignment: WorkAssignment) {
+    this.pendingUnassign = assignment;
+    this.unassignError = '';
+    this.cdr.detectChanges();
+  }
+
+  closeUnassign() {
+    if (this.busy) return;
+    this.pendingUnassign = null;
+    this.unassignError = '';
+    this.cdr.detectChanges();
+  }
+
+  async confirmUnassign() {
+    const assignment = this.pendingUnassign;
+    if (!assignment || this.busy) return;
     this.busy = true;
-    this.error = '';
+    this.unassignError = '';
     try {
       await this.api.patch(
         `admin/works/${this.workId}/assignments/${assignment.id}/unassign`,
         {},
       );
       this.notice = 'Responsable desasignado. El historial permanece disponible.';
+      this.pendingUnassign = null;
       await this.load();
     } catch (error) {
-      this.error = message(error);
+      this.unassignError = message(error);
     } finally {
       this.busy = false;
       this.cdr.detectChanges();

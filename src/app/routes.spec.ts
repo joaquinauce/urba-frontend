@@ -22,6 +22,12 @@ describe('rutas autorizadas por perfil', () => {
     const byPath = new Map(routes.map((route) => [route.path, route]));
     expect(byPath.get('dashboard')?.canActivate).toHaveLength(1);
     expect(byPath.get('personas')?.canActivate).toHaveLength(1);
+    expect(byPath.get('informes')?.canActivate).toHaveLength(1);
+    expect(byPath.get('informes/objetivos-diarios')?.canActivate).toHaveLength(1);
+    expect(byPath.get('informes/rendiciones')?.canActivate).toHaveLength(1);
+    expect(byPath.get('rendiciones')?.redirectTo).toBe('informes/rendiciones');
+    expect(byPath.get('configuracion')?.canActivate).toHaveLength(1);
+    expect(byPath.get('configuracion/tipos-de-gasto')?.canActivate).toHaveLength(1);
     expect(byPath.get('supervision')?.canActivate).toHaveLength(2);
     expect(byPath.get('supervision/:id')?.canActivate).toHaveLength(2);
     expect(byPath.get('mis-obras')?.canActivate).toHaveLength(2);

@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Api, type PersonSummary, type WorkAssignment } from './api';
 import { PeoplePage, WorkAssignmentsComponent } from './people-page';
@@ -50,11 +51,15 @@ describe('asignaciones múltiples', () => {
     patch = vi.fn(async () => ({}));
     TestBed.configureTestingModule({
       providers: [
+        provideRouter([]),
         {
           provide: Api,
           useValue: {
             get: vi.fn(async (path: string) =>
-              path === 'admin/people' ? people : assignments,
+              path === 'admin/people' ? people : path === 'admin/foremen' ? [
+                { id: 'foreman-1', firstName: 'Juan', lastName: 'Capataz', isActive: true },
+                { id: 'foreman-2', firstName: 'Pedro', lastName: 'Gómez', isActive: true },
+              ] : assignments,
             ),
             post,
             patch,
@@ -79,11 +84,17 @@ describe('asignaciones múltiples', () => {
   });
 
   it('desasigna sin borrar el historial', async () => {
-    vi.stubGlobal('confirm', () => true);
     const fixture = TestBed.createComponent(WorkAssignmentsComponent);
     fixture.componentInstance.workId = 'work-1';
     await fixture.componentInstance.load();
-    await fixture.componentInstance.unassign(assignments[0]);
+    fixture.componentInstance.requestUnassign(assignments[0]);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('#unassign-title').textContent).toBe('Desasignar responsable');
+    expect(patch).not.toHaveBeenCalled();
+    fixture.componentInstance.closeUnassign();
+    expect(fixture.componentInstance.pendingUnassign).toBeNull();
+    fixture.componentInstance.requestUnassign(assignments[0]);
+    await fixture.componentInstance.confirmUnassign();
     expect(patch).toHaveBeenCalledWith(
       'admin/works/work-1/assignments/assignment-1/unassign',
       {},
@@ -99,8 +110,40 @@ describe('asignaciones múltiples', () => {
     fixture.detectChanges();
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('Juan Capataz');
-    expect(fixture.nativeElement.querySelectorAll('.assignment-role-head')[1].textContent).toContain('1 activo');
+    expect(fixture.nativeElement.querySelectorAll('.assignment-role-head')[1].textContent).toContain('Capataz');
+    expect(fixture.nativeElement.textContent).not.toContain('Principal');
+    expect(fixture.nativeElement.textContent).not.toContain('activo(s)');
     expect(fixture.nativeElement.querySelectorAll('.assignment-empty').length).toBe(1);
+  });
+
+  it('cambia el capataz desde un modal y actualiza la obra', async () => {
+    const fixture = TestBed.createComponent(WorkAssignmentsComponent);
+    const component = fixture.componentInstance;
+    component.workId = 'work-1';
+    component.primaryForemanId = 'foreman-1';
+    component.primaryForemanName = 'Juan Capataz';
+    await component.load();
+    fixture.detectChanges();
+    component.openChange();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('#change-foreman-title').textContent).toBe('Cambiar capataz');
+    expect(component.changeOptions.map(option => option.value)).toEqual(['foreman-2']);
+    expect(patch).not.toHaveBeenCalled();
+    component.selectedForemanId = 'foreman-2';
+    await component.saveChange();
+    expect(patch).toHaveBeenCalledWith('admin/works/work-1/foreman', { foremanId: 'foreman-2' });
+    expect(component.changeOpen).toBe(false);
+  });
+
+  it('muestra el título de jefe de obra según la cantidad', async () => {
+    const fixture = TestBed.createComponent(WorkAssignmentsComponent);
+    const component = fixture.componentInstance;
+    component.workId = 'work-1';
+    await component.load();
+    component.assignments = [{ ...assignments[0], roleCode: 'SITE_MANAGER' }];
+    expect(component.roleTitle('SITE_MANAGER')).toBe('Jefe de Obra');
+    component.assignments = [...component.assignments, { ...assignments[0], id: 'assignment-2', personId: 'person-2', roleCode: 'SITE_MANAGER' }];
+    expect(component.roleTitle('SITE_MANAGER')).toBe('Jefes de obra');
   });
 });
 

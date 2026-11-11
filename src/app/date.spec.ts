@@ -47,15 +47,26 @@ describe('selector de fecha', () => {
     field.choose(29);
     expect(emitted).toBe('2026-10-29');
     field.onInput({ target: { value: '31/02/2026' } } as unknown as Event);
+    expect(field.error).toBe('');
+    expect(emitted).toBe('');
+    field.onBlur();
     expect(field.error).toContain('Fecha inválida');
+    expect(emitted).toBe('');
     fixture.destroy();
   });
-  it('muestra un error legible cuando se escribe una fecha imposible', () => {
+  it('muestra un error legible cuando se escribe una fecha imposible', async () => {
     const fixture = TestBed.configureTestingModule({ imports: [DateHost] }).createComponent(DateHost);
     fixture.detectChanges();
+    await fixture.whenStable();
     const input = fixture.nativeElement.querySelector('input') as HTMLInputElement;
     input.value = '31/02/2026';
     input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(input.value).toBe('31/02/2026');
+    expect(fixture.nativeElement.textContent).not.toContain('Fecha inválida');
+    expect(fixture.componentInstance.day).toBe('');
+    input.dispatchEvent(new Event('blur'));
+    await fixture.whenStable();
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Fecha inválida');
     expect(fixture.componentInstance.day).toBe('');

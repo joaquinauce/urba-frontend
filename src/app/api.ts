@@ -6,10 +6,10 @@ import { formatQuantity } from './quantity';
 import { PersonalSessionStore, type PersonalRole } from './session';
 
 export interface Foreman {id:string;firstName:string;lastName:string;phone:string;isActive:boolean}
-export interface Work {id:string;name:string;description?:string;location?:string;startDate:string;estimatedEndDate:string;status:string;timeZone:string;closeTime:string;foremanId:string;foremanName:string;accessAlias?:string|null}
+export interface Work {id:string;name:string;description?:string;location?:string;startDate:string;estimatedEndDate:string;status:string;pauseReason?:string|null;timeZone:string;closeTime:string;foremanId:string;foremanName:string;accessAlias?:string|null}
 export interface Goal {id:string;activityId:string;recurrenceId?:string;date:string;description:string;expectedQuantity:number;unit:string;customUnit?:string;quantityStep?:number|null;quantityDecimals?:number|null;isActive:boolean}
 export interface ReportItem {id:string;goalId:string;activityId:string;description:string;expected:number;actual:number;unit:string;customUnit?:string;quantityStep?:number|null;quantityDecimals?:number|null}
-export interface Report {id:string;workId:string;workName:string;date:string;foremanName:string;submittedByPersonId?:string|null;submittedBy?:{personId:string|null;name:string;accessType:'PERSONAL'|'LEGACY'};observations:string;submittedAt:string;updatedAt:string;items:ReportItem[];photos:{id:string}[];compliance:number|null}
+export interface Report {id:string;workId:string;workName:string;date:string;foremanName:string;administrativeEntry?:boolean;submittedByPersonId?:string|null;submittedBy?:{personId:string|null;name:string;accessType:'PERSONAL'|'LEGACY'|'ADMIN'};observations:string;submittedAt:string;updatedAt:string;items:ReportItem[];photos:{id:string}[];compliance:number|null}
 export interface PublicToday {work:{id:string;name:string;foremanName:string};date:string;goals:Goal[];report:Report|null;editable:boolean;closeTime:string}
 export interface PersonSummary {id:string;fullName:string;isActive:boolean;hasCode:boolean;failedAttempts:number;lockedUntil:string|null;lastAccessAt:string|null;roles:(PersonalRole|'ADMINISTRATOR')[];email?:string|null;hasPassword?:boolean;activeAssignments:number}
 export interface WorkAssignment {id:string;personId:string;personName:string;roleCode:PersonalRole;isPrimary:boolean;assignedAt:string;unassignedAt:string|null;active:boolean}
