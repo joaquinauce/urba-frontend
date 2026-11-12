@@ -18,6 +18,7 @@ import { formatArDate } from './date';
 import { timeGreeting } from './greeting';
 import { formatQuantity, quantityRule, validQuantity } from './quantity';
 import { PersonalSessionStore, roleLabel } from './session';
+import { WorkSelectionStore } from './context';
 
 type MemberWorkDetail = {
   today: string;
@@ -81,7 +82,7 @@ type MemberWorkDetail = {
       } @else {
         <div class="cards-grid member-work-grid">
           @for (work of works; track work.id) {
-            <a class="work-card" [routerLink]="[basePath(), work.id]">
+            <a class="work-card" [routerLink]="[basePath(), work.id]" (click)="select(work)">
               <div class="card-top"><span class="status" [class.verde]="work.status === 'ACTIVA'">{{ status(work.status) }}</span><span class="arrow">↗</span></div>
               <h3>{{ work.name }}</h3>
               <p>{{ work.location || 'Sin ubicación informada' }}</p>
@@ -99,6 +100,8 @@ export class MemberWorksPage implements OnInit {
   private readonly api = inject(Api);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly selectedWork = inject(WorkSelectionStore);
   readonly session = inject(PersonalSessionStore);
   readonly arDate = formatArDate;
   readonly greeting = timeGreeting();
@@ -114,9 +117,14 @@ export class MemberWorksPage implements OnInit {
   async load() {
     try {
       this.works = await this.api.get<MemberWork[]>('member/works', 'person');
-      if (this.session.canWrite() && this.works.length === 1)
+      const current = this.selectedWork.selected();
+      if (current && !this.works.some(work => work.id === current.id)) this.selectedWork.clear();
+      if (this.works.length === 1 && this.route.snapshot.queryParamMap.get('elegir') !== '1') {
+        this.select(this.works[0]);
         await this.router.navigate([this.basePath(), this.works[0].id]);
+      }
     } catch (error) {
+      if ([401, 403].includes((error as { status?: number }).status ?? 0)) this.selectedWork.clear();
       this.error = message(error);
     } finally {
       this.loading = false;
@@ -126,6 +134,11 @@ export class MemberWorksPage implements OnInit {
 
   basePath() {
     return this.session.canWrite() ? '/mis-obras' : '/supervision';
+  }
+
+  select(work: MemberWork) {
+    const person = this.session.person();
+    if (person) this.selectedWork.set({ clientId: person.clientId ?? person.administratorId, id: work.id, name: work.name });
   }
 
   status(value: string) {
@@ -269,6 +282,7 @@ export class MemberWorkPage implements OnInit {
   private readonly api = inject(Api);
   private readonly route = inject(ActivatedRoute);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly selectedWork = inject(WorkSelectionStore);
   readonly session = inject(PersonalSessionStore);
   readonly arDate = formatArDate;
   readonly greeting = timeGreeting();
@@ -301,6 +315,8 @@ export class MemberWorkPage implements OnInit {
     try {
       const detail = await this.api.get<MemberWorkDetail>(`member/works/${this.id}`, 'person');
       this.detail = detail;
+      const person = this.session.person();
+      if (person) this.selectedWork.set({ clientId: person.clientId ?? person.administratorId, id: this.id, name: detail.work.name });
       this.selectedDate ||= detail.today;
       const today = detail.reports.find((report) => report.date === detail.today);
       if (today) {
@@ -312,6 +328,7 @@ export class MemberWorkPage implements OnInit {
         this.restoreDraft();
       }
     } catch (error) {
+      if ([401, 403, 404].includes((error as { status?: number }).status ?? 0)) this.selectedWork.clear();
       this.error = message(error);
     } finally {
       this.loading = false;
@@ -421,6 +438,7 @@ export class MemberWorkPage implements OnInit {
       await this.load();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
+      if ([401, 403].includes((error as { status?: number }).status ?? 0)) this.selectedWork.clear();
       this.error = message(error);
     } finally {
       this.busy = false;

@@ -11,10 +11,10 @@ export interface Goal {id:string;activityId:string;recurrenceId?:string;date:str
 export interface ReportItem {id:string;goalId:string;activityId:string;description:string;expected:number;actual:number;unit:string;customUnit?:string;quantityStep?:number|null;quantityDecimals?:number|null}
 export interface Report {id:string;workId:string;workName:string;date:string;foremanName:string;administrativeEntry?:boolean;submittedByPersonId?:string|null;submittedBy?:{personId:string|null;name:string;accessType:'PERSONAL'|'LEGACY'|'ADMIN'};observations:string;submittedAt:string;updatedAt:string;items:ReportItem[];photos:{id:string}[];compliance:number|null}
 export interface PublicToday {work:{id:string;name:string;foremanName:string};date:string;goals:Goal[];report:Report|null;editable:boolean;closeTime:string}
-export interface PersonSummary {id:string;fullName:string;isActive:boolean;hasCode:boolean;failedAttempts:number;lockedUntil:string|null;lastAccessAt:string|null;roles:(PersonalRole|'ADMINISTRATOR')[];email?:string|null;hasPassword?:boolean;activeAssignments:number}
+export interface PersonSummary {id:string;fullName:string;shared?:boolean;isActive:boolean;hasCode:boolean;failedAttempts:number;lockedUntil:string|null;lastAccessAt:string|null;roles:(PersonalRole|'ADMINISTRATOR')[];email?:string|null;hasPassword?:boolean;activeAssignments:number}
 export interface WorkAssignment {id:string;personId:string;personName:string;roleCode:PersonalRole;isPrimary:boolean;assignedAt:string;unassignedAt:string|null;active:boolean}
 export interface MemberWork {id:string;name:string;description:string|null;location:string|null;status:string;startDate:string;estimatedEndDate:string;foremanName:string;roles:PersonalRole[]}
-export interface AdministratorIdentity {id:string;email:string;fullName:string;role:'ADMINISTRATOR'}
+export interface AdministratorIdentity {id:string;email:string;fullName:string;role:'ADMINISTRATOR';clientId?:string;clientName?:string;roles?:PersonalRole[];platformOperator?:boolean}
 
 @Injectable({providedIn:'root'})
 export class AuthStore {

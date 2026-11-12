@@ -1,0 +1,4 @@
+.context-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px clamp(16px,4vw,48px);background:#f4f0e9;color:#453b31;font-size:.88rem;border-bottom:1px solid #e2d9ca}
+.context-bar a{color:#674a25;font-weight:700;text-decoration:underline;text-underline-offset:2px}
+.context-bar span+span{margin-left:auto}
+@media(max-width:600px){.context-bar{gap:6px 12px}.context-bar span+span{margin-left:0}}

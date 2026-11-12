@@ -166,8 +166,8 @@ describe('alta con credenciales', () => {
     fixture.detectChanges();
     expect(fixture.componentInstance.editing).toBe('person-edit');
     expect(fixture.nativeElement.querySelector('.app-modal h2').textContent).toBe('Editar persona');
-    expect((fixture.nativeElement.querySelector('input[name="fullName"]') as HTMLInputElement).value).toBe('Nombre anterior');
-    fixture.componentInstance.form.fullName = 'Cambio sin guardar';
+    expect(fixture.nativeElement.querySelector('input[name="fullName"]')).toBeNull();
+    fixture.componentInstance.form.roles = ['FOREMAN'];
     (fixture.nativeElement.querySelector('.modal-actions .ghost') as HTMLButtonElement).click();
     await fixture.whenStable();
     expect(fixture.componentInstance.editing).toBe('');
@@ -177,10 +177,10 @@ describe('alta con credenciales', () => {
     await fixture.whenStable();
     expect(fixture.nativeElement.querySelector('.app-modal')).toBeNull();
     fixture.componentInstance.edit(person);
-    fixture.componentInstance.form.fullName = 'Nombre nuevo';
+    fixture.componentInstance.form.roles = ['FOREMAN'];
     await fixture.componentInstance.save();
     expect(patch).toHaveBeenCalledWith('admin/people/person-edit', {
-      fullName: 'Nombre nuevo',
+      roles: ['FOREMAN'],
     });
   });
 
@@ -190,9 +190,9 @@ describe('alta con credenciales', () => {
     fixture.detectChanges();
     (fixture.nativeElement.querySelector('.people-list-tools .primary') as HTMLButtonElement).click();
     fixture.detectChanges();
-    const admin = fixture.nativeElement.querySelector('input[value="ADMINISTRATOR"]') as HTMLInputElement;
-    const manager = fixture.nativeElement.querySelector('input[value="SITE_MANAGER"]') as HTMLInputElement;
-    expect(fixture.nativeElement.querySelector('input[value="FOREMAN"]')).toBeNull();
+    const admin = fixture.nativeElement.querySelector('input[name="administratorRole"]') as HTMLInputElement;
+    const manager = fixture.nativeElement.querySelector('input[name="siteManagerRole"]') as HTMLInputElement;
+    expect(fixture.nativeElement.querySelector('input[name="foremanRole"]')).not.toBeNull();
     admin.click();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -236,6 +236,7 @@ describe('alta con credenciales', () => {
     fixture.componentInstance.form = {
       fullName: 'Jefa Nueva',
       role: 'SITE_MANAGER',
+      roles: [],
       email: 'jefa@example.com',
       password: 'clave-segura-123',
       isActive: true,
@@ -253,7 +254,7 @@ describe('alta con credenciales', () => {
     expect(fixture.nativeElement.querySelector('.management-steps')).toBeNull();
   });
 
-  it('inhabilita y cambia la clave desde la tarjeta', async () => {
+  it('inhabilita la pertenencia sin ofrecer cambios de clave global', async () => {
     const person: PersonSummary = { id: 'admin-1', fullName: 'Administradora', email: 'admin@example.com',
       isActive: true, hasCode: false, hasPassword: true, failedAttempts: 0, lockedUntil: null,
       lastAccessAt: null, roles: ['ADMINISTRATOR'], activeAssignments: 0 };
@@ -264,28 +265,8 @@ describe('alta con credenciales', () => {
     const fixture = TestBed.createComponent(PeoplePage);
     await fixture.componentInstance.load(); fixture.detectChanges();
     const buttons = fixture.nativeElement.querySelectorAll('.person-actions button') as NodeListOf<HTMLButtonElement>;
+    expect([...buttons].some(button => button.textContent?.includes('clave'))).toBe(false);
     buttons[1].click(); fixture.detectChanges();
-    await fixture.whenStable();
-    const newPassword = fixture.nativeElement.querySelector('input[name="newPassword"]') as HTMLInputElement;
-    const confirmation = fixture.nativeElement.querySelector('input[name="confirmNewPassword"]') as HTMLInputElement;
-    const eyeButtons = fixture.nativeElement.querySelectorAll('.password-toggle') as NodeListOf<HTMLButtonElement>;
-    eyeButtons[0].click(); fixture.detectChanges();
-    expect(newPassword.type).toBe('text');
-    expect(confirmation.type).toBe('password');
-    eyeButtons[1].click(); fixture.detectChanges();
-    expect(confirmation.type).toBe('text');
-    (fixture.nativeElement.querySelector('.modal-actions .primary') as HTMLButtonElement).click();
-    await fixture.whenStable();
-    expect(fixture.nativeElement.querySelector('.app-modal .alert.error').textContent).toContain('10 caracteres');
-    newPassword.value = 'clave-nueva-123'; newPassword.dispatchEvent(new Event('input', { bubbles: true }));
-    confirmation.value = 'clave-nueva-123'; confirmation.dispatchEvent(new Event('input', { bubbles: true }));
-    await fixture.whenStable();
-    expect(fixture.componentInstance.newPassword).toBe('clave-nueva-123');
-    expect(fixture.componentInstance.confirmNewPassword).toBe('clave-nueva-123');
-    (fixture.nativeElement.querySelector('.modal-actions .primary') as HTMLButtonElement).click();
-    await fixture.whenStable();
-    expect(patch).toHaveBeenCalledWith('admin/people/admin-1', { password: 'clave-nueva-123' });
-    (fixture.nativeElement.querySelectorAll('.person-actions button')[2] as HTMLButtonElement).click(); fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.status-confirm-icon')).not.toBeNull();
     (fixture.nativeElement.querySelector('.modal-actions .primary') as HTMLButtonElement).click();
     await fixture.whenStable();

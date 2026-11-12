@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { describe, expect, it } from 'vitest';
-import { LoginPage } from './pages';
+import { LoginPage } from './login-page';
 
 describe('contraseña del login', () => {
   it('arranca oculta y se muestra solo al tocar el botón', () => {

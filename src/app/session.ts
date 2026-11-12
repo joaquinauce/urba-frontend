@@ -5,6 +5,8 @@ export type PersonalRole = 'SITE_MANAGER' | 'FOREMAN';
 export interface PersonIdentity {
   id: string;
   administratorId: string;
+  clientId?: string;
+  clientName?: string;
   fullName: string;
   roles: PersonalRole[];
 }
@@ -59,7 +61,7 @@ export class PersonalSessionStore {
   }
 }
 
-export function personalLanding(person: PersonIdentity) {
+export function personalLanding(_person: PersonIdentity) {
   return '/mis-obras';
 }
 

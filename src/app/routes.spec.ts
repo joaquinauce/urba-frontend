@@ -45,7 +45,7 @@ describe('rutas autorizadas por perfil', () => {
   it('rechaza el panel administrativo sin una sesión administrativa', () => {
     const result = TestBed.runInInjectionContext(adminGuard);
     expect(router.serializeUrl(result === true ? router.createUrlTree(['/']) : result)).toBe('/login');
-    admin.set('admin-token');
+    admin.set(`x.${btoa(JSON.stringify({exp:Math.floor(Date.now()/1000)+60}))}.x`);
     expect(TestBed.runInInjectionContext(adminGuard)).toBe(true);
   });
 
@@ -64,5 +64,11 @@ describe('rutas autorizadas por perfil', () => {
     expect(TestBed.runInInjectionContext(personalForemanGuard)).toBe(true);
     const supervisorDenied = TestBed.runInInjectionContext(siteManagerGuard);
     expect(router.serializeUrl(supervisorDenied === true ? router.createUrlTree(['/']) : supervisorDenied)).toBe('/mis-obras');
+  });
+  it('rechaza un token vencido restaurado tras actualizar el navegador', () => {
+    admin.set(`x.${btoa(JSON.stringify({exp:Math.floor(Date.now()/1000)-60}))}.x`);
+    const result = TestBed.runInInjectionContext(adminGuard);
+    expect(router.serializeUrl(result === true ? router.createUrlTree(['/']) : result)).toBe('/login');
+    expect(admin.token()).toBe('');
   });
 });

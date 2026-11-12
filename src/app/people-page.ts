@@ -25,6 +25,7 @@ import { SearchSelect, type SearchOption } from './search-select';
 type PersonForm = {
   fullName: string;
   role: PersonalRole | 'ADMINISTRATOR' | '';
+  roles: (PersonalRole | 'ADMINISTRATOR')[];
   email: string;
   password: string;
   isActive: boolean;
@@ -39,12 +40,13 @@ type PersonForm = {
         <div>
           <span class="eyebrow dark">EQUIPO Y PERMISOS</span>
           <h1>Personas</h1>
-          <p>Gestioná administradores y jefes de obra.</p>
+          <p>Gestioná roles y asignaciones de tu cliente.</p>
         </div>
       </div>
 
       @if (error && !modal) { <div class="alert error">{{ error }}</div> }
       @if (notice) { <div class="alert success">{{ notice }}</div> }
+      @if (invitationUrl) { <div class="alert success" role="status">Invitación para {{ invitationEmail }}. Solo esa persona podrá aceptarla al ingresar. <a [href]="invitationUrl">Abrir enlace</a> <button type="button" class="ghost small" (click)="copyInvitation()">Copiar enlace</button><button type="button" class="ghost small" (click)="invitationUrl=''">Cerrar</button></div> }
       @if (revealedCode) { <div class="alert success" role="status">Código nuevo de {{ revealedName }}: <strong>{{ revealedCode }}</strong>. Compartilo por un canal seguro; se muestra solo ahora. <button type="button" class="ghost small" (click)="copyCode()">Copiar</button><button type="button" class="ghost small" (click)="dismissCode()">Cerrar</button></div> }
       <div class="people-list-head">
         <h2 class="list-heading">Equipo <span class="team-count">{{ filteredPeople().length }} {{ filteredPeople().length === 1 ? 'registrado' : 'registrados' }}</span></h2>
@@ -54,7 +56,7 @@ type PersonForm = {
         </div>
       </div>
       @if (loading) { <div class="empty compact">Cargando personas…</div> }
-      @else if (!people.length) { <div class="empty compact">Todavía no hay administradores ni jefes de obra.</div> }
+      @else if (!people.length) { <div class="empty compact">Todavía no hay personas en este cliente.</div> }
       @for (group of groups(); track group.role) {
         @if (group.people.length) {
           <section class="team-group" [attr.aria-label]="group.title">
@@ -67,6 +69,7 @@ type PersonForm = {
                     <div class="row-main"><strong>{{ person.fullName }}</strong><small>{{ person.email || 'Sin email' }}</small></div>
                     <span class="status" [class.verde]="person.isActive">{{ person.isActive ? 'Activa' : 'Inactiva' }}</span>
                   </div>
+                  <small>Roles: {{ person.roles.length ? roleNames(person.roles) : 'Sin rol' }}</small>
                   @if (person.activeAssignments || workNames[person.id]?.length) {
                     <p class="assignment-summary"><strong>{{ person.activeAssignments }}</strong> asignación(es) activa(s)@if (workNames[person.id]?.length) { · {{ workNames[person.id].join(' · ') }} }</p>
                   }
@@ -74,9 +77,8 @@ type PersonForm = {
                   @if (person.hasCode) { <small>Acceso personal: {{ isLocked(person) ? 'Bloqueado hasta ' + dateTime(person.lockedUntil!) : 'Habilitado' }} · Intentos fallidos: {{ person.failedAttempts }}</small> }
                   <div class="actions person-actions">
                     <button class="ghost small" type="button" (click)="edit(person)">Editar</button>
-                    <button class="ghost small" type="button" (click)="changePassword(person)">Cambiar clave</button>
-                    @if (person.roles.includes('FOREMAN') || person.roles.includes('SITE_MANAGER')) { <button class="ghost small" type="button" [disabled]="busy" (click)="rotate(person)">{{ person.hasCode ? 'Rotar código' : 'Crear código' }}</button> }
-                    @if (person.hasCode && (person.failedAttempts || person.lockedUntil)) { <button class="ghost small" type="button" [disabled]="busy" (click)="unlock(person)">Desbloquear</button> }
+                    @if (!person.shared && (person.roles.includes('FOREMAN') || person.roles.includes('SITE_MANAGER'))) { <button class="ghost small" type="button" [disabled]="busy" (click)="rotate(person)">{{ person.hasCode ? 'Rotar código' : 'Crear código' }}</button> }
+                    @if (!person.shared && person.hasCode && (person.failedAttempts || person.lockedUntil)) { <button class="ghost small" type="button" [disabled]="busy" (click)="unlock(person)">Desbloquear</button> }
                     <button class="ghost small" type="button" [disabled]="busy" (click)="requestStatus(person)">{{ person.isActive ? 'Inhabilitar' : 'Habilitar' }}</button>
                   </div>
                 </article>
@@ -109,13 +111,14 @@ type PersonForm = {
               <div class="actions modal-actions"><button class="ghost" type="button" (click)="closeModal()">Cancelar</button><button class="primary" type="button" [disabled]="busy" (click)="confirmStatus()">{{ busy ? 'Guardando…' : selectedPerson?.isActive ? 'Inhabilitar' : 'Habilitar' }}</button></div>
             } @else {
               <form (ngSubmit)="save()">
-                <label>Nombre completo<input name="fullName" [(ngModel)]="form.fullName" maxlength="201" required></label>
-                <fieldset class="role-fieldset"><legend>Rol</legend>
-                  <label class="role-option" [class.selected]="form.role==='ADMINISTRATOR'"><input type="radio" name="role" value="ADMINISTRATOR" [checked]="form.role==='ADMINISTRATOR'" (change)="form.role='ADMINISTRATOR'"><span><strong>Administrador</strong></span></label>
-                  <label class="role-option" [class.selected]="form.role==='SITE_MANAGER'"><input type="radio" name="role" value="SITE_MANAGER" [checked]="form.role==='SITE_MANAGER'" (change)="form.role='SITE_MANAGER'"><span><strong>Jefe de obra</strong></span></label>
+                @if (editing) { <p class="modal-intro"><strong>{{form.fullName}}</strong><br>{{form.email}}@if(selectedPerson?.shared){ · Cuenta compartida }</p> }
+                @else { <label>Nombre completo<input name="fullName" [(ngModel)]="form.fullName" maxlength="201"></label> }
+                <fieldset class="role-fieldset"><legend>{{ editing ? 'Roles en este cliente' : 'Rol inicial' }}</legend>
+                  <label class="role-option" [class.selected]="roles().includes('ADMINISTRATOR')"><input [type]="editing ? 'checkbox' : 'radio'" name="administratorRole" [checked]="roles().includes('ADMINISTRATOR')" (change)="selectRole('ADMINISTRATOR')"><span><strong>Administrador</strong></span></label>
+                  <label class="role-option" [class.selected]="roles().includes('SITE_MANAGER')"><input [type]="editing ? 'checkbox' : 'radio'" name="siteManagerRole" [checked]="roles().includes('SITE_MANAGER')" (change)="selectRole('SITE_MANAGER')"><span><strong>Jefe de obra</strong></span></label>
+                  <label class="role-option" [class.selected]="roles().includes('FOREMAN')"><input [type]="editing ? 'checkbox' : 'radio'" name="foremanRole" [checked]="roles().includes('FOREMAN')" (change)="selectRole('FOREMAN')"><span><strong>Capataz</strong></span></label>
                 </fieldset>
-                <label>Email<input type="email" name="email" [(ngModel)]="form.email" autocomplete="off" required></label>
-                @if (!editing) { <label>Contraseña<span class="password-field"><input #passwordInput [type]="showPassword ? 'text' : 'password'" name="password" [(ngModel)]="form.password" minlength="10" required autocomplete="new-password"><button class="password-toggle" type="button" [attr.aria-label]="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'" [attr.aria-pressed]="showPassword" (click)="togglePasswordVisibility(passwordInput, 'create', $event)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>@if(!showPassword){<path d="M3 3l18 18"/>}</svg></button></span></label> }
+                @if (!editing) { <label>Email<input type="email" name="email" [(ngModel)]="form.email" autocomplete="off" required></label><p class="hint">Si el email ya está registrado, se generará una invitación sin cambiar esa cuenta.</p><label>Contraseña inicial (solo para una persona nueva)<span class="password-field"><input #passwordInput [type]="showPassword ? 'text' : 'password'" name="password" [(ngModel)]="form.password" minlength="10" autocomplete="new-password"><button class="password-toggle" type="button" [attr.aria-label]="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'" [attr.aria-pressed]="showPassword" (click)="togglePasswordVisibility(passwordInput, 'create', $event)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>@if(!showPassword){<path d="M3 3l18 18"/>}</svg></button></span></label> }
                 @if (error) { <div class="alert error">{{ error }}</div> }
                 <div class="actions modal-actions"><button class="ghost" type="button" (click)="closeModal()">Cancelar</button><button class="primary" [disabled]="busy">{{ busy ? 'Guardando…' : editing ? 'Guardar cambios' : 'Crear persona' }}</button></div>
               </form>
@@ -143,6 +146,7 @@ export class PeoplePage implements OnInit {
   editing = '';
   originalActive = true;
   originalRole: PersonalRole | 'ADMINISTRATOR' | '' = '';
+  originalRoles: (PersonalRole | 'ADMINISTRATOR')[] = [];
   originalEmail = '';
   originalHasPassword = false;
   error = '';
@@ -150,6 +154,8 @@ export class PeoplePage implements OnInit {
   query = '';
   revealedCode = '';
   revealedName = '';
+  invitationUrl = '';
+  invitationEmail = '';
   form = this.blank();
   showPassword = false;
   readonly label = roleLabel;
@@ -159,11 +165,18 @@ export class PeoplePage implements OnInit {
   }
 
   blank(): PersonForm {
-    return { fullName: '', role: '', email: '', password: '', isActive: true };
+    return { fullName: '', role: '', roles: [], email: '', password: '', isActive: true };
   }
 
   roles(): (PersonalRole | 'ADMINISTRATOR')[] {
-    return this.form.role ? [this.form.role] : [];
+    return this.editing ? this.form.roles : this.form.role ? [this.form.role] : [];
+  }
+
+  selectRole(role: PersonalRole | 'ADMINISTRATOR') {
+    if (!this.editing) { this.form.role = role; return; }
+    this.form.roles = this.form.roles.includes(role)
+      ? this.form.roles.filter((item) => item !== role)
+      : [...this.form.roles, role];
   }
 
   filteredPeople() {
@@ -181,6 +194,8 @@ export class PeoplePage implements OnInit {
     return [
       { role: 'ADMINISTRATOR', title: 'Administradores', people: people.filter((person) => person.roles.includes('ADMINISTRATOR')) },
       { role: 'SITE_MANAGER', title: 'Jefes de obra', people: people.filter((person) => person.roles.includes('SITE_MANAGER') && !person.roles.includes('ADMINISTRATOR')) },
+      { role: 'FOREMAN', title: 'Capataces', people: people.filter((person) => person.roles.includes('FOREMAN') && !person.roles.includes('SITE_MANAGER') && !person.roles.includes('ADMINISTRATOR')) },
+      { role: 'NONE', title: 'Sin rol', people: people.filter((person) => !person.roles.length) },
     ];
   }
 
@@ -213,7 +228,7 @@ export class PeoplePage implements OnInit {
         this.api.get<PersonSummary[]>('admin/people'),
         this.api.get<Work[]>('admin/works'),
       ]);
-      this.people = people.filter((person) => person.roles.some((role) => role === 'ADMINISTRATOR' || role === 'SITE_MANAGER'));
+      this.people = people;
       this.works = works;
       const assignmentSets = await Promise.all(
         this.works.map((work) =>
@@ -239,16 +254,19 @@ export class PeoplePage implements OnInit {
 
   edit(person: PersonSummary) {
     this.error = '';
+    this.selectedPerson = person;
     this.editing = person.id;
     this.originalActive = person.isActive;
     this.form = {
       fullName: person.fullName,
       role: person.roles.includes('ADMINISTRATOR') ? 'ADMINISTRATOR' : person.roles.includes('SITE_MANAGER') ? 'SITE_MANAGER' : 'FOREMAN',
+      roles: person.roles.filter((role): role is PersonalRole | 'ADMINISTRATOR' => ['ADMINISTRATOR', 'SITE_MANAGER', 'FOREMAN'].includes(role)),
       email: person.email ?? '',
       password: '',
       isActive: person.isActive,
     };
     this.originalRole = this.form.role;
+    this.originalRoles = [...this.form.roles];
     this.originalEmail = this.form.email;
     this.originalHasPassword = person.hasPassword ?? false;
     this.showPassword = false;
@@ -330,6 +348,7 @@ export class PeoplePage implements OnInit {
     this.editing = '';
     this.originalActive = true;
     this.originalRole = '';
+    this.originalRoles = [];
     this.originalEmail = '';
     this.originalHasPassword = false;
     this.form = this.blank();
@@ -340,7 +359,7 @@ export class PeoplePage implements OnInit {
     this.error = '';
     this.notice = '';
     const roles = this.roles();
-    if (!roles.length) {
+    if (!roles.length && !this.editing) {
       this.error = 'Seleccioná al menos un rol.';
       return;
     }
@@ -348,18 +367,23 @@ export class PeoplePage implements OnInit {
     try {
       if (this.editing) {
         await this.api.patch(`admin/people/${this.editing}`, {
-          fullName: this.form.fullName,
-          ...(this.form.role !== this.originalRole ? { roles } : {}),
+          ...(roles.join('|') !== this.originalRoles.join('|') ? { roles } : {}),
           ...(this.form.isActive !== this.originalActive ? { isActive: this.form.isActive } : {}),
-          ...(this.form.email !== this.originalEmail ? { email: this.form.email } : {}),
-          ...(this.form.password ? { password: this.form.password } : {}),
         });
         this.notice = 'Persona actualizada.';
       } else {
-        const created = await this.api.post<{ id: string; fullName: string }>(
+        const created = await this.api.post<{ id?: string; fullName?: string; pendingInvitation?: boolean; invitationId?: string; invitationToken?: string; email?: string }>(
           'admin/people',
           { fullName: this.form.fullName, roles, email: this.form.email, password: this.form.password },
         );
+        if (created.pendingInvitation && created.invitationId && created.invitationToken) {
+          this.invitationUrl = `${window.location.origin}/invitaciones#id=${encodeURIComponent(created.invitationId)}&token=${encodeURIComponent(created.invitationToken)}`;
+          this.invitationEmail = created.email ?? this.form.email;
+          this.notice = 'Invitación preparada. Compartí el enlace con la persona.';
+          this.closeModalAfterSave();
+          return;
+        }
+        if (!created.id) throw new Error('No se pudo completar el alta.');
         if (!roles.includes('FOREMAN')) { this.notice = 'Persona creada.'; this.closeModalAfterSave(); await this.load(); return; }
         let credentials: { code: string };
         try {
@@ -374,7 +398,7 @@ export class PeoplePage implements OnInit {
           this.error = codeMessage;
           return;
         }
-        this.revealedName = created.fullName;
+        this.revealedName = created.fullName ?? this.form.fullName;
         this.revealedCode = credentials.code;
         this.notice = 'Persona creada. Guardá su código ahora.';
       }
@@ -459,6 +483,11 @@ export class PeoplePage implements OnInit {
     this.notice = 'Código copiado.';
   }
 
+  async copyInvitation() {
+    await navigator.clipboard.writeText(this.invitationUrl);
+    this.notice = 'Enlace de invitación copiado.';
+  }
+
   dismissCode() {
     this.revealedCode = '';
     this.revealedName = '';
@@ -470,6 +499,11 @@ export class PeoplePage implements OnInit {
       .slice(0, 2)
       .map((part) => part[0]?.toUpperCase())
       .join('');
+  }
+
+  roleNames(roles: string[]) {
+    return roles.map((role) => role === 'ADMINISTRATOR' ? 'Administrador'
+      : role === 'SITE_MANAGER' ? 'Jefe de obra' : 'Capataz').join(' · ');
   }
 
   dateTime(value: string) {
